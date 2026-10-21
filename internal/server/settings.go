@@ -33,7 +33,7 @@ func (s *Server) publicSettings(ctx context.Context, u *store.User, st store.Set
 		"box_holidays":      s.cfg.HolidayCountry,
 		"notify_has_token":  st.NotifyToken != "",
 		"notify_box_route":  s.cfg.NotifyURL != "" && s.isOwner(ctx, u.ID),
-		"google_configured": s.cfg.GoogleClientID != "",
+		"google_configured": s.cfg.GoogleClientID != "" && s.cfg.GoogleClientSecret != "",
 		"core":              s.coreStatus(),
 	}
 }
