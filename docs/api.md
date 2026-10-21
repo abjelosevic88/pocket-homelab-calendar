@@ -157,14 +157,67 @@ plus public holidays.
 
 ## Accounts (other calendars)
 
+Every other calendar account a person has, mirrored here: each remote calendar becomes a calendar of kind
+`caldav`, `nextcloud`, `google` or `ics` (with `account_id` set) that works like any other — shown on the grid,
+shareable, in the CalDAV server and the feeds. Accounts are strictly per person; other people's ids answer 404.
+
+| kind | address | sign-in |
+|---|---|---|
+| `caldav` | Any CalDAV server: `https://caldav.icloud.com`, `https://caldav.fastmail.com`, `https://dav.mailbox.org`, `https://calendar.zoho.com`, Radicale, Baïkal, Synology, a Nextcloud's `…/remote.php/dav` | user name + password (iCloud and Fastmail: an app-specific password) |
+| `nextcloud` | The Nextcloud address (`https://cloud.example.com`; `/remote.php/dav` is added) | `via: direct` with user name + app password, or `via: core` — the login Pocket Core holds for the person (service `nextcloud`), no address or password here |
+| `google` | — | Google's sign-in (`GET /accounts/google/start`) |
+| `ics` | Any `.ics` / `webcal://` address: Outlook/Office 365 published calendars, Google's "secret address in iCal format", fixtures, school terms | none (the address is the secret) — read-only |
+
+Discovery follows RFC 6764 (the address, `/.well-known/caldav`, the server root → current-user-principal →
+calendar-home-set). Every calendar that holds events is mirrored; ones the server marks read-only (no write
+privilege, Google `reader`, Nextcloud's `contact_birthdays`) are read-only here too. Calendars added over there
+appear on the next sync, removed ones go. A rename over there carries over unless it was renamed here; a
+mirrored calendar deleted here is not mirrored again (see `restore_calendars`).
+
+Sync: every `sync_minutes` (default 15, `ics` 60, 5…1440), right after the account is added or changed, on
+`POST /accounts/{id}/sync`, and local changes (web app, API, CalDAV clients) are pushed within ~20 seconds.
+Pull = sync-collection with the stored token when the server supports it, else a listing of etags; changed
+events are fetched with calendar-multiget in batches of 50. Push = `PUT` with `If-Match` (new events
+`If-None-Match: *`), deletes with `If-Match`. When an event changed on both sides the newer `LAST-MODIFIED`
+wins; an event deleted over there that was changed here meanwhile is kept and sent back as new. `ics` feeds are
+fetched with `If-None-Match`/`If-Modified-Since`, compared per UID (ignoring `DTSTAMP`), and events that left the
+feed are removed.
+
+Passwords and Google tokens are sealed (AES-256-GCM) with `DATA_DIR/secret.key` (made on first start, mode
+0600) and never returned. Back the key up with the database; without it, passwords must be entered again.
+
+Account:
+
+```jsonc
+{
+  "id": 4, "kind": "caldav|google|ics|nextcloud", "name": "iCloud", "url": "https://caldav.icloud.com",
+  "username": "me@icloud.com", "via": "direct|core", "sync_minutes": 15, "enabled": true,
+  "last_sync_at": "2026-10-21T08:15:00Z", "last_error": "",   // "" = the last sync went through
+  "has_secret": true, "syncing": false,
+  "calendars": 3, "calendar_list": [{"id": 12, "name": "Home", "color": "#34aadc", "read_only": false}],
+  "created_at": "…", "updated_at": "…"
+}
+```
+
 | Route | |
 |---|---|
-| `GET /accounts` | `[{id, kind: caldav\|google\|ics\|nextcloud, name, url, username, via, sync_minutes, enabled, last_sync_at, last_error, has_secret, calendars}]` |
-| `POST /accounts` `{kind, name?, url, username?, password?, via?: direct\|core}` | Add and sync. `nextcloud` with `via: core` needs no address or password. `ics` = a read-only subscription. |
-| `POST /accounts/test` (same body) | Try without saving → `{ok, calendars: [{name, color, href}]}` |
-| `PUT /accounts/{id}`, `DELETE /accounts/{id}` | Deleting removes the mirrored calendars here (nothing is deleted at the provider). |
-| `POST /accounts/{id}/sync` | Sync now. |
-| `GET /accounts/google/start` | Browser redirect to Google; comes back to `/settings/accounts`. Needs `GOOGLE_CLIENT_ID`. |
+| `GET /accounts` | The person's accounts. |
+| `GET /accounts/{id}` | One account. |
+| `POST /accounts` `{kind, name?, url, username?, password?, via?: direct\|core, sync_minutes?, enabled?}` | Connects first (a wrong password or address answers 400 with the reason and nothing is saved), mirrors the calendars at once (an `ics` feed with its events) and syncs the events in the background → the account (201). `name` defaults to the provider (iCloud, Fastmail, Nextcloud…) or the feed's `X-WR-CALNAME`. The same account twice → 409. `kind: google` → 400 (use the Google route). |
+| `POST /accounts/test` (same body) | Connects without saving → `{ok: true, name, calendars: [{name, color, href, read_only}]}` or `{ok: false, error, calendars: []}`. |
+| `PUT /accounts/{id}` `{name?, url?, username?, password?, via?, sync_minutes?, enabled?, restore_calendars?}` | A changed address, user name, password or `via` is tried before it is stored (400 when it fails). An empty `password` keeps the stored one. `restore_calendars: true` mirrors calendars deleted here again. The kind cannot change. |
+| `DELETE /accounts/{id}` | Removes the account and its calendars here (nothing is deleted at the provider) → 204. |
+| `POST /accounts/{id}/sync[?wait=1]` | Sync now → the account (`syncing: true`); with `wait=1` the sync runs before the answer. |
+| `GET /accounts/google/start[?account=<id>][&json=1]` | Browser redirect to Google's consent page (calendar scope, offline access); `account` reconnects an existing Google account, `json=1` answers `{url}` instead. Without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` → 400 with how to create the OAuth client. |
+| `GET /accounts/google/callback` | Where Google sends the browser back (no API auth; the person comes from the session cookie and must be the one who started). Stores the account (name = the Google email) and goes to `/settings?tab=accounts&connected=<id>`, or `/settings?tab=accounts&error=<message>`. |
+
+Google setup (once per box): in the Google Cloud console create a project, enable the **Google Calendar API**
+and the **CalDAV API**, configure the OAuth consent screen (publish it — in Testing, Google drops the sign-in
+after 7 days), create an OAuth client ID of type **Web application** with the redirect URI
+`BASE_URL/api/v1/accounts/google/callback`, then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Calendars are
+listed with the Calendar API (`calendarList`; free/busy-only ones are skipped) and their events go through
+Google's CalDAV endpoint (`https://apidata.googleusercontent.com/caldav/v2/<calendarId>/events/`) with the
+access token, refreshed automatically.
 
 ## Settings
 
