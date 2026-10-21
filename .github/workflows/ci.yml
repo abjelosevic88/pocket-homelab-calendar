@@ -26,8 +26,8 @@ jobs:
           DATA_DIR=/tmp/pt DEMO_DATA=true AUTH_MODE=none ./pocket-calendar &
           sleep 2
           curl -fsS http://localhost:8080/healthz
-          curl -fsS http://localhost:8080/api/v1/dashboard | grep -q open
-          curl -fsS "http://localhost:8080/api/v1/tasks?view=today" | grep -q '"tasks"'
+          curl -fsS http://localhost:8080/api/v1/calendars | grep -q '"role":"owner"'
+          curl -fsS "http://localhost:8080/api/v1/events?from=$(date +%F)&to=$(date -d '+14 days' +%F)" | grep -q '"events"'
           curl -fsS -X PROPFIND -H 'Depth: 0' http://localhost:8080/dav/ | grep -q current-user-principal
           curl -fsS http://localhost:8080/ | grep -q '<div id="root">'
   docker:

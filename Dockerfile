@@ -33,7 +33,7 @@ USER app
 WORKDIR /data
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -fsS http://localhost:8080/healthz || exit 1
 LABEL org.opencontainers.image.title="Pocket Calendar" \
-      org.opencontainers.image.description="Self-hosted tasks with a real CalDAV server (Apple Reminders, Thunderbird, Tasks.org, BusyCal), tasks on any calendar as events, Nextcloud Tasks import and two-way sync, natural-language capture, sections, repeats, reminders pushed from the server." \
+      org.opencontainers.image.description="A self-hosted shared calendar: calendars shared with the people on your box, invitations with RSVP, reminders from the server, a CalDAV server for phones, iCloud/Google/Nextcloud/CalDAV accounts and ICS feeds, and dated things from the other Pocket apps on the same grid." \
       org.opencontainers.image.source="https://github.com/abjelosevic88/pocket-homelab-calendar" \
       org.opencontainers.image.licenses="MIT"
 ENTRYPOINT ["pocket-calendar"]

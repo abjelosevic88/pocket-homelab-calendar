@@ -13,9 +13,12 @@ services:
       # ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       # SECURE_COOKIES: "true"          # behind HTTPS
       # AUTH_MODE: proxy                # trust Remote-User from Authelia / Authentik / Tinyauth
-      # NOTIFY_URL: http://apprise:8000/notify/tasks   # reminders and the morning digest
-      # CORE_URL: http://pocket-core:8080              # Pocket Core: sign-in, Nextcloud account, events
+      # NOTIFY_URL: http://apprise:8000/notify/calendar   # reminders, invitations, the morning agenda
+      # HOLIDAY_COUNTRY: DE                              # public holidays shown by default
+      # CORE_URL: http://pocket-core:8080              # Pocket Core: sign-in, the other Pocket apps, Nextcloud, events
       # CORE_REGISTRATION_KEY: …
-      # DEMO_DATA: "true"               # seed a few made-up tasks into an empty box
+      # GOOGLE_CLIENT_ID: …             # Google Calendar accounts (see docs/configuration.md)
+      # GOOGLE_CLIENT_SECRET: …
+      # DEMO_DATA: "true"               # seed a made-up week into an empty box
     volumes:
-      - ./data:/data                    # database, attachments, backups
+      - ./data:/data                    # database, secret.key, backups
