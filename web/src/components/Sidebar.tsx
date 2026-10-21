@@ -37,6 +37,7 @@ export function Sidebar({ date, selected, range, today, onPick, onCreate, onOpen
       <div className="sb-brand">
         <img src="/favicon.svg" alt="" className="sb-logo" />
         <span className="sb-title">{status?.title && status.title !== 'Pocket Calendar' ? status.title : <>Pocket <b>Calendar</b></>}</span>
+        {status?.version && <span className="sb-version" title={`Version ${status.version}`}>{/^\d/.test(status.version) ? 'v' + status.version : status.version}</span>}
       </div>
       <button type="button" className="btn primary create-btn" onClick={onCreate}><Icon name="plus" size={17} strokeWidth={2.2} />Create<kbd className="kbd-on-primary">C</kbd></button>
       <MiniMonth month={month} onMonth={setMonth} selected={selected} range={range} today={today} weekStart={settings?.week_start ?? 1} onPick={d => { onPick(d); onNavigate?.() }} dots={dots} weekNumbers={settings?.show_week_numbers} />
