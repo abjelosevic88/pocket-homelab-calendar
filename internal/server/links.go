@@ -1,0 +1,146 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"regexp"
+	"strings"
+
+	"github.com/abjelosevic88/pocket-homelab-calendar/internal/store"
+	core "github.com/abjelosevic88/pocket-homelab-core/sdk"
+)
+
+// Pocket Core app links (docs/links.md in pocket-homelab-core): another
+// Pocket app may act here for a person with a pcx_ token, only within these
+// scopes. Every route not listed in linkRoutes stays closed to it.
+
+var linkOffers = []core.Offer{
+	{Scope: "calendar:read", Name: "See your calendar", Description: "Read your calendars, the events in a date range (recurring events expanded), invitations and search (what Pocket Day writes into the journal, what Pocket Hub shows as \"next up\")."},
+	{Scope: "calendar:write", Name: "Add events to your calendar", Description: "Create events and change or delete the ones the app created itself (Pocket Travel's flights and stays, Pocket Kitchen's dinner plan, Pocket Garage's service appointments)."},
+}
+
+// serviceUses are the third-party services reached through Core for a person.
+var serviceUses = []core.ServiceUse{
+	{Type: "nextcloud", Reason: "Show your Nextcloud calendars (and contact birthdays) here and keep them in sync both ways"},
+}
+
+type linkRoute struct {
+	methods string
+	path    *regexp.Regexp
+	scope   string
+}
+
+var linkRoutes = []linkRoute{
+	{"GET", regexp.MustCompile(`^/api/v1/auth/me$`), ""},
+	{"GET", regexp.MustCompile(`^/api/v1/(calendars|events|invitations|search|changes)$`), "calendar:read"},
+	{"GET", regexp.MustCompile(`^/api/v1/events/[0-9]+(:[0-9TZ]+)?(/ics)?$`), "calendar:read"},
+	{"POST", regexp.MustCompile(`^/api/v1/(events|events/quick)$`), "calendar:write"},
+	{"PUT DELETE", regexp.MustCompile(`^/api/v1/events/[0-9]+(:[0-9TZ]+)?$`), "calendar:write"},
+}
+
+var errLinkScope = errors.New("outside the link's scope")
+
+func linkAllows(scopes []string, r *http.Request) bool {
+	for _, lr := range linkRoutes {
+		if !strings.Contains(" "+lr.methods+" ", " "+r.Method+" ") || !lr.path.MatchString(r.URL.Path) {
+			continue
+		}
+		if lr.scope == "" {
+			return true
+		}
+		for _, sc := range scopes {
+			if sc == lr.scope {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// linkUser validates a pcx_ token and maps it to the person it acts for.
+func (s *Server) linkUser(ctx context.Context, tok string, r *http.Request) (*store.User, error) {
+	in, err := s.core.Introspect(ctx, tok)
+	if err != nil {
+		return nil, err
+	}
+	if !in.Active || !in.Delegated() || in.User == nil || in.User.Email == "" {
+		return nil, http.ErrNoCookie
+	}
+	if !linkAllows(strings.Fields(in.Scope), r) {
+		return nil, errLinkScope
+	}
+	s.linkApps.Store(tok, in.App)
+	return s.coreIdentityUser(ctx, in)
+}
+
+// linkApp is the Pocket app acting through a link token ("" otherwise).
+func (s *Server) linkApp(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if !strings.HasPrefix(strings.ToLower(h), "bearer ") {
+		return ""
+	}
+	tok := strings.TrimSpace(h[7:])
+	if !core.IsLinkToken(tok) {
+		return ""
+	}
+	if v, ok := s.linkApps.Load(tok); ok {
+		return v.(string)
+	}
+	return "link"
+}
+
+// source names who wrote a change: the acting app, the web app or the API.
+func (s *Server) source(r *http.Request) string {
+	if app := s.linkApp(r); app != "" {
+		return app
+	}
+	if r.Header.Get("X-Pocket-Source") == "web" {
+		return "web"
+	}
+	return "api"
+}
+
+// reportModes tells Core how each person reaches the Pocket apps shown on
+// their calendar and Nextcloud (Core, Direct or off).
+func (s *Server) reportModes(ctx context.Context) {
+	if !s.core.Configured() {
+		return
+	}
+	var modes []core.ConnMode
+	for _, uid := range s.store.UserIDs(ctx) {
+		email := s.userEmail(ctx, uid)
+		if email == "" {
+			continue
+		}
+		st, err := s.store.GetSettings(ctx, uid)
+		if err != nil {
+			continue
+		}
+		for _, src := range overlaySources {
+			if src.Slug == "" {
+				continue
+			}
+			modes = append(modes, core.ConnMode{User: email, Target: src.Slug, Mode: s.overlayMode(ctx, uid, st, src)})
+		}
+		mode := "off"
+		if accs, err := s.store.ListAccounts(ctx, uid); err == nil {
+			for _, a := range accs {
+				if a.Kind == "nextcloud" && a.Enabled {
+					mode = a.Via
+				}
+			}
+		}
+		modes = append(modes, core.ConnMode{User: email, Target: "service:nextcloud", Mode: mode})
+	}
+	if err := s.core.ReportModes(ctx, modes); err != nil {
+		s.log.Debug("pocket core: report modes", "err", err)
+	}
+}
+
+func (s *Server) userEmail(ctx context.Context, uid int64) string {
+	if u, err := s.store.GetUser(ctx, uid); err == nil {
+		return u.Email
+	}
+	return ""
+}
