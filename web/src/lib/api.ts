@@ -18,7 +18,7 @@ async function request<T>(method: string, url: string, body?: unknown, raw = fal
   }
   const res = await fetch(url, init)
   if (res.status === 401 && !url.includes('/auth/')) {
-    window.dispatchEvent(new CustomEvent('pt:unauthorized'))
+    window.dispatchEvent(new CustomEvent('pcal:unauthorized'))
   }
   if (!res.ok) {
     let msg = res.statusText

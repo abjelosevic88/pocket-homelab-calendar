@@ -11,6 +11,41 @@ in and kept in sync both ways.
 
 <p align="center"><img src="docs/screenshots/week.png" width="900" alt="Week view with overlapping events, an all-day trip, holidays and tasks from Pocket Tasks"></p>
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/month.png" alt="Month view with multi-day trips, tasks and invoices due"></td>
+    <td width="50%"><img src="docs/screenshots/people.png" alt="People view comparing busy times to find a free slot"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Month: trips span the days, tasks and bills on their day.</sub></td>
+    <td align="center"><sub>People: everyone's busy time side by side, free stretches marked.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/invitation.png" alt="An invitation with Accept, Maybe and Decline"></td>
+    <td width="50%"><img src="docs/screenshots/editor.png" alt="The event editor with repeat, reminders and guests"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Invitations between people on the box, answered in one tap.</sub></td>
+    <td align="center"><sub>Repeat rules, time zones, reminders and guests.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/quick-add.png" alt="Quick add previewing a plain-language event"></td>
+    <td width="50%"><img src="docs/screenshots/settings-apps.png" alt="Settings: dated things from the other Pocket apps"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Quick add in plain words, previewed as you type.</sub></td>
+    <td align="center"><sub>Tasks, trips, service and invoices from the other Pocket apps.</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/screenshots/mobile-week.png" width="240" alt="Three days on a phone">&nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-agenda.png" width="240" alt="Agenda on a phone">&nbsp;&nbsp;
+  <img src="docs/screenshots/mobile-dark.png" width="240" alt="Dark mode on a phone">
+</p>
+
+All screenshots use the built-in demo data. [How to refresh them](docs/screenshots/README.md).
+
 ## What it does
 
 **A full calendar**
