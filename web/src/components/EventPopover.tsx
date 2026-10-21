@@ -2,6 +2,7 @@
 // card for items from other Pocket apps.
 import React, { useState } from 'react'
 import { useApp } from '../lib/app-context'
+import { useContactRefs, useContactsOn } from '../lib/contacts'
 import { alarmLabel, parseWall, todayWall, whenText, zoneLabel } from '../lib/dates'
 import { type Item, myStatus } from '../lib/model'
 import type { Scope } from '../lib/types'
@@ -34,6 +35,14 @@ export function EventPopover({ item, anchor, onClose, actions }: { item: Item; a
   const showTz = !ev.all_day && ev.tz && ev.tz !== tz
   const canSee = !ev.masked
   const isOrganizer = !ev.organizer || ev.organizer.email === user?.email
+  const contactsOn = useContactsOn()
+  const guests = ev.attendees?.length ? [ev.organizer?.email, ...ev.attendees.map(a => a.email)].filter(e => e && e !== user?.email) : []
+  const contacts = useContactRefs(guests, contactsOn && canSee)
+  const who = (name: string | undefined, email: string) => {
+    const c = contacts[email.toLowerCase()]
+    const text = name || c?.name || email
+    return c ? <a href={c.url} target="_blank" rel="noreferrer noopener" title={`${email} · open in Pocket Contacts`}>{text}</a> : text
+  }
   return (
     <Popover anchor={anchor} onClose={onClose} width={400} label={ev.title} className="evpop">
       <div className="evpop-bar">
@@ -92,8 +101,8 @@ export function EventPopover({ item, anchor, onClose, actions }: { item: Item; a
             <div className="grow">
               <div className="evpop-guests-sum">{ev.attendees.length + (ev.organizer ? 1 : 0)} guests <span className="muted">· {ev.attendees.filter(a => a.status === 'ACCEPTED').length} yes{ev.attendees.some(a => a.status === 'TENTATIVE') ? `, ${ev.attendees.filter(a => a.status === 'TENTATIVE').length} maybe` : ''}{ev.attendees.some(a => !a.status || a.status === 'NEEDS-ACTION') ? `, ${ev.attendees.filter(a => !a.status || a.status === 'NEEDS-ACTION').length} awaiting` : ''}</span></div>
               <ul className="evpop-guests">
-                {ev.organizer && <li><Avatar name={ev.organizer.name} email={ev.organizer.email} size={22} /><span className="grow ellipsis">{ev.organizer.name || ev.organizer.email}{isOrganizer && ' (you)'}</span><span className="muted xsmall">Organizer</span></li>}
-                {ev.attendees.map(a => <li key={a.email}><Avatar name={a.name} email={a.email} size={22} /><span className="grow ellipsis">{a.name || a.email}{a.me && ' (you)'}</span><StatusPill status={a.status} /></li>)}
+                {ev.organizer && <li><Avatar name={ev.organizer.name} email={ev.organizer.email} src={contacts[ev.organizer.email.toLowerCase()]?.photo_url || undefined} size={22} /><span className="grow ellipsis">{who(ev.organizer.name, ev.organizer.email)}{isOrganizer && ' (you)'}</span><span className="muted xsmall">Organizer</span></li>}
+                {ev.attendees.map(a => <li key={a.email}><Avatar name={a.name} email={a.email} src={contacts[a.email.toLowerCase()]?.photo_url || undefined} size={22} /><span className="grow ellipsis">{who(a.name, a.email)}{a.me && ' (you)'}</span><StatusPill status={a.status} /></li>)}
               </ul>
             </div>
           </div>
@@ -119,8 +128,8 @@ export function EventPopover({ item, anchor, onClose, actions }: { item: Item; a
   )
 }
 
-const APP_NAME: Record<string, string> = { tasks: 'Pocket Tasks', travel: 'Pocket Travel', garage: 'Pocket Garage', invoicing: 'Pocket Invoicing', habits: 'Pocket Habits', collaborator: 'Pocket Collaborator', holidays: 'Public holidays' }
-const KIND_TEXT: Record<string, string> = { task: 'Task', due: 'Deadline', done: 'Done', trip: 'Trip', service: 'Service due', invoice: 'Invoice due', habit: 'Habit', review: 'Review due', holiday: 'Public holiday' }
+const APP_NAME: Record<string, string> = { tasks: 'Pocket Tasks', travel: 'Pocket Travel', garage: 'Pocket Garage', invoicing: 'Pocket Invoicing', habits: 'Pocket Habits', collaborator: 'Pocket Collaborator', birthdays: 'Pocket Contacts', holidays: 'Public holidays' }
+const KIND_TEXT: Record<string, string> = { task: 'Task', due: 'Deadline', done: 'Done', trip: 'Trip', service: 'Service due', invoice: 'Invoice due', habit: 'Habit', review: 'Review due', holiday: 'Public holiday', birthday: 'Birthday', anniversary: 'Anniversary' }
 
 export function OverlayPopover({ item, anchor, onClose, onToggle }: { item: Item; anchor: Anchor; onClose: () => void; onToggle?: () => void }) {
   const { h12, tz } = useApp()

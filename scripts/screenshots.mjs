@@ -59,6 +59,13 @@ const mock = http.createServer((req, res) => {
     if (u.pathname === '/api/v1/invoices') return json(200, { items: [{ id: 55, number: '2026-041', client_name: 'Athena Studio', status: 'sent', due_date: day(4), currency: 'EUR', total: 2400, balance: 2400 }] })
     if (u.pathname === '/api/v1/reviews') return json(200, [{ id: 9, title: 'Onboarding copy v3', status: 'open', due_date: day(8), decided_at: null }])
     if (u.pathname === '/api/v1/habits') return json(200, [])
+    if (u.pathname === '/api/v1/birthdays') {
+      const from = u.searchParams.get('from'), until = ymd(new Date(new Date(from + 'T12:00:00').getTime() + (+u.searchParams.get('days') || 60) * 86400000))
+      const marko = { id: 12, fn: 'Marko Petrović', emails: ['marko@example.com'], has_photo: false, photo_url: '' }
+      return json(200, [{ contact: marko, kind: 'birthday', date: day(2), original: '1988-' + day(2).slice(5), age: +day(2).slice(0, 4) - 1988, days: 0 }].filter(b => b.date >= from && b.date < until))
+    }
+    if (u.pathname === '/api/v1/suggest') return json(200, [{ id: 12, name: 'Marko Petrović', email: 'marko@example.com', phone: '', photo_url: '' }])
+    if (u.pathname === '/api/v1/lookup') return json(200, { contacts: [] })
     json(404, { error: 'not found' })
   })
 })
@@ -106,7 +113,7 @@ if (!users.some(u => u.email === sani.email)) {
   await ev(admin, { calendar_id: cal('Family'), title: 'Swimming lessons', start: `${day(5)}T10:00`, end: `${day(5)}T11:00`, rrule: 'FREQ=WEEKLY;BYDAY=SA' })
   await ev(admin, { calendar_id: cal('Work'), title: 'WebDev Days', start: day(15), end: day(17), all_day: true, location: 'Ljubljana' })
 }
-for (const s of ['tasks', 'travel', 'garage', 'invoicing', 'collaborator']) await call('PUT', `/overlays/sources/${s}`, { mode: 'direct', url: `http://127.0.0.1:${MOCK_PORT}`, token: 'demo' })
+for (const s of ['tasks', 'travel', 'garage', 'invoicing', 'collaborator', 'birthdays']) await call('PUT', `/overlays/sources/${s}`, { mode: 'direct', url: `http://127.0.0.1:${MOCK_PORT}`, token: 'demo' })
 const people = await call('GET', '/people')
 const withIds = people.filter(p => p.email === sani.email || p.email === maya.email).map(p => p.id).join(',')
 const retro = (await call('GET', `/events?from=${day(0)}&to=${day(7)}`)).events.find(e => e.title === 'Sprint retro')

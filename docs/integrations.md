@@ -16,6 +16,7 @@ Settings → From your apps, for boxes without Core.
 | **Pocket Invoicing** | `invoices:read` | Unpaid invoices on their due date with the amount still owed. On by default. |
 | **Pocket Habits** | `habits:read` | Habits on the weekdays they are planned (off by default: busy on a month view). |
 | **Pocket Collaborator** | `reviews:read` | Open document reviews on their deadline (off by default). |
+| **Pocket Contacts** | `contacts:read` | Birthdays and anniversaries as all-day items ("🎂 Marko Petrović (38)", "💍 …"; the age when the year is known, 29 February on the 28th in other years); a click opens the contact. The event editor also suggests guests from Contacts as you type (with their photos), and a guest who is a contact links to them in the event details. On by default. |
 | Public holidays | — | From date.nager.at for the country in Settings (`HOLIDAY_COUNTRY` by default). |
 | **Nextcloud** (Core service) | `service:nextcloud` | Nextcloud calendars (and contact birthdays) mirrored and kept in sync both ways, with the person's own Nextcloud account from Core — no password typed into the calendar. |
 
@@ -52,7 +53,10 @@ It publishes `calendar.created`, `calendar.updated`, `calendar.deleted`, `calend
 9. **Notes → Calendar meeting notes (`notes:write` from the calendar).** "Meeting notes" on an event creates (or
    opens) a note titled with the event, date and attendees, linked back to the event; the event shows the link.
 10. **Inventory (`items:read`).** Food and medicine expiry dates and warranty ends as all-day reminders.
-11. **Core: people directory for apps.** Invites and the share picker list only people who have signed in to the
+11. ~~**Contacts → Calendar (`contacts:read`).**~~ **Done:** birthdays and anniversaries as an overlay
+    (`/api/v1/birthdays`), guest suggestions in the event editor (`/api/v1/suggest`) and guests linked to their
+    contact (`/api/v1/lookup`); see the table above.
+12. **Core: people directory for apps.** Invites and the share picker list only people who have signed in to the
     calendar once; a Core endpoint listing the household (name + email, audience-checked) would let you invite
     someone who hasn't opened the calendar yet. Today the calendar covers that with share-by-email, which binds
     on their first sign-in.

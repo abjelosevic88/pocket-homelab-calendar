@@ -55,7 +55,10 @@ export function Select<T extends string | number>({ value, options, onChange, pl
   )
 }
 
-export function OptionList<T extends string | number>({ anchor, options, value, search, width, onPick, onClose, emptyText = 'Nothing matches', footer }: { anchor: Anchor; options: Option<T>[]; value?: T; search: boolean; width: number; onPick: (v: T) => void; onClose: () => void; emptyText?: string; footer?: React.ReactNode }) {
+/** keepFocus: the list belongs to a text field that keeps the focus while
+ *  the person types (and the options change under it); arrows and Enter are
+ *  read from the whole page while the list is open. */
+export function OptionList<T extends string | number>({ anchor, options, value, search, width, onPick, onClose, emptyText = 'Nothing matches', footer, keepFocus }: { anchor: Anchor; options: Option<T>[]; value?: T; search: boolean; width: number; onPick: (v: T) => void; onClose: () => void; emptyText?: string; footer?: React.ReactNode; keepFocus?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [q, setQ] = useState('')
@@ -85,16 +88,26 @@ export function OptionList<T extends string | number>({ anchor, options, value, 
     const el = list.current?.querySelector<HTMLElement>(`[data-i="${hi}"]`)
     el?.scrollIntoView({ block: 'nearest' })
   }, [hi, pos])
-  useEffect(() => { if (!search) ref.current?.focus() }, [search])
-  const key = (e: React.KeyboardEvent) => {
+  useEffect(() => { if (!search && !keepFocus) ref.current?.focus() }, [search, keepFocus])
+  const key = (e: React.KeyboardEvent | KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(shown.length - 1, h + 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(0, h - 1)) }
     else if (e.key === 'Enter') { e.preventDefault(); const o = shown[hi]; if (o && !o.disabled) onPick(o.value) }
-    else if (e.key === 'Tab') onClose()
+    else { if (e.key === 'Tab') onClose(); return false }
+    return true
   }
+  const keyRef = useRef(key)
+  keyRef.current = key
+  useEffect(() => { if (keepFocus) setHi(0) }, [options, keepFocus])
+  useEffect(() => {
+    if (!keepFocus) return
+    const h = (e: KeyboardEvent) => { if (!e.isComposing && keyRef.current(e)) e.stopPropagation() }
+    document.addEventListener('keydown', h, true)
+    return () => document.removeEventListener('keydown', h, true)
+  }, [keepFocus])
   let lastGroup: string | undefined
   return createPortal(
-    <div ref={ref} className="select-pop" tabIndex={-1} style={{ width, left: pos?.left ?? -9999, top: pos?.top ?? -9999 }} onKeyDown={key} data-keep-open>
+    <div ref={ref} className="select-pop" tabIndex={-1} style={{ width, left: pos?.left ?? -9999, top: pos?.top ?? -9999 }} onKeyDown={keepFocus ? undefined : key} data-keep-open>
       {search && <div className="select-search"><Icon name="search" size={14} /><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" aria-controls={lid} /></div>}
       <div ref={list} className="select-list" role="listbox" id={lid} style={{ maxHeight: (pos?.maxH ?? 360) - (search ? 44 : 0) }}>
         {shown.length === 0 && <div className="select-empty">{emptyText}</div>}

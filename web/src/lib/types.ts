@@ -184,7 +184,7 @@ export interface EventBody {
 
 export type Scope = 'this' | 'following' | 'all'
 
-export type OverlayKind = 'task' | 'due' | 'done' | 'trip' | 'service' | 'invoice' | 'habit' | 'review' | 'holiday'
+export type OverlayKind = 'task' | 'due' | 'done' | 'trip' | 'service' | 'invoice' | 'habit' | 'review' | 'holiday' | 'birthday' | 'anniversary'
 
 export interface OverlayItem {
   id: string
@@ -221,6 +221,12 @@ export interface OverlaySource {
   pocket: boolean
   actions: string[] | null
 }
+
+/** A guest suggestion from Pocket Contacts (GET /contacts/suggest). */
+export interface ContactSuggestion { id: number; name: string; email: string; photo_url: string; url: string }
+
+/** The contact an email belongs to (GET /contacts/lookup). */
+export interface ContactRef { id: number; name: string; url: string; photo_url: string }
 
 export interface PeopleEntry { id: number; name: string; email: string; me: boolean; freebusy: boolean }
 

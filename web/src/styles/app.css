@@ -197,6 +197,8 @@
 .evpop-guests-sum { font-weight: 550; margin-bottom: 6px; }
 .evpop-guests { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .evpop-guests li { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.evpop-guests a { color: inherit; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.evpop-guests a:hover { color: var(--accent); }
 .evpop-note { margin: 6px 0 0 30px; }
 .evpop .join { height: 30px; }
 .rsvp-box { background: var(--surface-2); border-radius: 12px; padding: 10px 12px 12px; margin: 4px 0 8px; }

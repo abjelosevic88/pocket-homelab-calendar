@@ -86,7 +86,7 @@ export function buildItems(events: Occurrence[], overlays: OverlayItem[], calend
     const allDay = o ? o.allDay : ov.all_day
     if (allDay && e <= s) e = addDays(s, 1)
     if (!allDay && e <= s) e = s + 30 * MIN
-    items.push({ id: ov.id, title: ov.title.replace(/^(\u2708|\u{1F527})\uFE0F?\s*/u, ''), start: s, end: e, allDay, color: ov.color, ov })
+    items.push({ id: ov.id, title: ov.title.replace(/^(\u2708|\u{1F527}|\u{1F382}|\u{1F48D})\uFE0F?\s*/u, ''), start: s, end: e, allDay, color: ov.color, ov })
   }
   items.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start) || a.title.localeCompare(b.title))
   return { items, holidays }

@@ -71,6 +71,8 @@ const P: Record<string, string> = {
   undo: 'M3 7v6h6M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13',
   move: 'M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20',
   dot: 'M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  cake: 'M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1M2 21h20M7 8v3M12 8v3M17 8v3M7 4h.01M12 4h.01M17 4h.01',
+  heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
 }
 
 export type IconName = keyof typeof P | string
@@ -87,5 +89,5 @@ export function Icon({ name, size = 16, className = '', strokeWidth = 1.75, titl
 }
 
 export const OVERLAY_ICON: Record<string, string> = {
-  task: 'circle', due: 'flag', done: 'check-circle', trip: 'plane', service: 'wrench', invoice: 'receipt', habit: 'habit', review: 'review', holiday: 'star',
+  task: 'circle', due: 'flag', done: 'check-circle', trip: 'plane', service: 'wrench', invoice: 'receipt', habit: 'habit', review: 'review', holiday: 'star', birthday: 'cake', anniversary: 'heart',
 }

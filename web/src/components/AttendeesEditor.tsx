@@ -1,6 +1,8 @@
-// Guests: people on the box (with avatars) or any email; shows each answer.
+// Guests: people on the box (with avatars), people from Pocket Contacts or
+// any email; shows each answer.
 import React, { useMemo, useRef, useState } from 'react'
 import { useApp } from '../lib/app-context'
+import { useContactSuggestions, useContactsOn } from '../lib/contacts'
 import type { Attendee, PartStat } from '../lib/types'
 import { Icon } from './icons'
 import { type Option, OptionList } from './Select'
@@ -20,17 +22,27 @@ export function AttendeesEditor({ value, onChange, organizer }: { value: Attende
   const [q, setQ] = useState('')
   const [anchor, setAnchor] = useState<Anchor | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const contactsOn = useContactsOn()
+  const fromContacts = useContactSuggestions(q, contactsOn)
   const have = new Set(value.map(a => a.email.toLowerCase()))
   const options = useMemo<Option<string>[]>(() => {
     const n = q.trim().toLowerCase()
     const list: Option<string>[] = people.filter(p => !p.me && !have.has(p.email.toLowerCase()) && (!n || `${p.name} ${p.email}`.toLowerCase().includes(n)))
       .map(p => ({ value: p.email, label: p.name || p.email, description: p.email, icon: <Avatar name={p.name} email={p.email} size={22} /> }))
-    if (isEmail(q) && !have.has(q.trim().toLowerCase()) && !list.some(o => o.value.toLowerCase() === q.trim().toLowerCase())) list.push({ value: q.trim(), label: `Invite ${q.trim()}`, icon: <span className="who-ico"><Icon name="mail" size={13} /></span> })
-    return list
-  }, [q, people, value]) // eslint-disable-line react-hooks/exhaustive-deps
+    const listed = new Set([...have, ...people.map(p => p.email.toLowerCase())])
+    const contacts: Option<string>[] = []
+    for (const c of fromContacts) {
+      if (listed.has(c.email.toLowerCase())) continue
+      listed.add(c.email.toLowerCase())
+      contacts.push({ value: c.email, label: c.name || c.email, description: c.email, group: 'From Contacts', icon: <Avatar name={c.name} email={c.email} src={c.photo_url || undefined} size={22} /> })
+    }
+    if (isEmail(q) && !listed.has(q.trim().toLowerCase()) && !list.some(o => o.value.toLowerCase() === q.trim().toLowerCase())) list.push({ value: q.trim(), label: `Invite ${q.trim()}`, icon: <span className="who-ico"><Icon name="mail" size={13} /></span> })
+    return [...list, ...contacts]
+  }, [q, people, value, fromContacts]) // eslint-disable-line react-hooks/exhaustive-deps
   const add = (email: string) => {
     const p = people.find(x => x.email.toLowerCase() === email.toLowerCase())
-    onChange([...value, { email: p?.email || email, name: p?.name || undefined, status: 'NEEDS-ACTION' }])
+    const c = fromContacts.find(x => x.email.toLowerCase() === email.toLowerCase())
+    onChange([...value, { email: p?.email || c?.email || email, name: p?.name || c?.name || undefined, status: 'NEEDS-ACTION' }])
     setQ('')
     input.current?.focus()
   }
@@ -38,14 +50,14 @@ export function AttendeesEditor({ value, onChange, organizer }: { value: Attende
   return (
     <div className="attendees">
       <div className="att-input">
-        <input ref={input} value={q} placeholder="Add guests — people here or any email" aria-label="Add guests"
+        <input ref={input} value={q} placeholder={contactsOn ? 'Add guests — people here, your contacts or any email' : 'Add guests — people here or any email'} aria-label="Add guests"
           onFocus={open} onChange={e => { setQ(e.target.value); open() }}
           onKeyDown={(e: React.KeyboardEvent) => {
             if (e.key === 'Enter' && isEmail(q) && !options.length) { e.preventDefault(); add(q.trim()) }
             if (e.key === 'Backspace' && !q && value.length) onChange(value.slice(0, -1))
           }} />
       </div>
-      {anchor && options.length > 0 && <OptionList anchor={anchor} options={options} search={false} width={Math.max(anchor.w, 260)} onPick={add} onClose={() => setAnchor(null)} />}
+      {anchor && options.length > 0 && <OptionList anchor={anchor} options={options} search={false} keepFocus width={Math.max(anchor.w, 260)} onPick={add} onClose={() => setAnchor(null)} />}
       {(value.length > 0 || organizer) && (
         <ul className="att-list">
           {organizer && (

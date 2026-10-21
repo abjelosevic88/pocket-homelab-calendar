@@ -20,7 +20,7 @@ import (
 )
 
 // Overlays are things with a date that live in other Pocket apps (tasks,
-// trips, service reminders, invoices due…) or on the web (public holidays),
+// trips, service reminders, invoices due, birthdays…) or on the web (public holidays),
 // shown next to the calendars. They are read live, as the person, through a
 // Pocket Core app link (or a token they pasted: "direct"), never copied in.
 
@@ -52,6 +52,9 @@ var overlaySources = []OverlaySource{
 		Reason: "Show which habits are planned for each day", Description: "Habits on the weekdays they are planned for."},
 	{ID: "collaborator", Name: "Reviews due", App: "Pocket Collaborator", Slug: "collaborator", Scopes: []string{"reviews:read"}, Color: "#c026d3",
 		Reason: "Show the deadlines of document reviews", Description: "Open document reviews on their due date."},
+	{ID: "birthdays", Name: "Birthdays", App: "Pocket Contacts", Slug: "contacts", Scopes: []string{"contacts:read"}, Color: "#e11d48", DefaultOn: true,
+		Reason:      "Show your contacts' birthdays and anniversaries, and suggest guests from your contacts",
+		Description: "Birthdays and anniversaries of your contacts on their day (with the age when the year is known); guests from your contacts in the event editor."},
 	{ID: "holidays", Name: "Public holidays", App: "date.nager.at", Color: "#e11d48", DefaultOn: true,
 		Description: "Public holidays of the country chosen in Settings."},
 }
@@ -317,6 +320,8 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = habitItems(ctx, sb, from, to, loc)
 			case "collaborator":
 				items, err = reviewItems(ctx, sb, from, to)
+			case "birthdays":
+				items, err = birthdayItems(ctx, sb, from, to, loc)
 			}
 		}
 	}
@@ -851,6 +856,9 @@ func (s *Server) handleSaveOverlaySource(w http.ResponseWriter, r *http.Request)
 		_ = s.store.SetUserSetting(ctx, u.ID, "overlay.token."+src.ID, strings.TrimSpace(*in.Token))
 	}
 	s.dropOverlayCache(u.ID, src.ID)
+	if src.ID == "birthdays" {
+		s.dropContactsCache(u.ID)
+	}
 	go s.reportModes(context.WithoutCancel(ctx))
 	s.handleOverlaySources(w, r)
 }

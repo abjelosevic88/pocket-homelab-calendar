@@ -78,6 +78,8 @@ links, read live as the person — [details and what's next](docs/integrations.m
 - Pocket Tasks: dated tasks on their day or at their time — tick them off and drag them to reschedule.
 - Pocket Travel trips, Pocket Garage service reminders, Pocket Invoicing due dates, Pocket Habits and Pocket
   Collaborator deadlines; public holidays.
+- Pocket Contacts: birthdays and anniversaries on their day, and guests suggested from your contacts as you
+  type in the event editor.
 - Offers `calendar:read` and `calendar:write` so Day, Hub, Travel and the rest can read and add events, and
   publishes `calendar.*` events on the bus.
 

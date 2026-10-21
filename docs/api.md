@@ -141,7 +141,7 @@ plus public holidays.
 ```jsonc
 {
   "id": "tasks:12:task:2026-10-21", "source": "tasks", "ref": "12",
-  "kind": "task|due|done|trip|service|invoice|habit|review|holiday",
+  "kind": "task|due|done|trip|service|invoice|habit|review|holiday|birthday|anniversary",
   "title": "Pay rent", "subtitle": "Home", "start": "2026-10-21" | RFC3339, "end": "…", "all_day": true,
   "color": "#2563eb", "url": "https://tasks…/today?task=12", "done": false, "overdue": false,
   "actions": ["complete", "reschedule"], "meta": {…}
@@ -154,6 +154,21 @@ plus public holidays.
 | `PUT /overlays/sources/{id}` `{mode?, color?, url?, token?}` | Switch a source, recolour it, or connect it directly. |
 | `POST /overlays/tasks/{ref}/complete` `{done: true\|false}` | Tick a task in Pocket Tasks. |
 | `PUT /overlays/tasks/{ref}` `{kind: task\|due, start, end?, all_day}` | Reschedule a task dragged on the grid (start or deadline; `end` sets its estimate). |
+
+Birthdays (`source: "birthdays"`, Pocket Contacts) are all-day items titled `🎂 Marko Petrović (38)` or
+`💍 Ana Kovač (12)` (the age only when the year is known), `ref` = the contact id, `url` = its page in Contacts,
+`meta: {age?, original}`. A contact born on 29 February shows on 28 February in other years.
+
+### Pocket Contacts (guests)
+
+Reached the way the *birthdays* source is set up (Core, Direct or off); off or unreachable answers empty, never
+an error.
+
+| Route | |
+|---|---|
+| `GET /contacts/suggest?q=&limit=8` | `[{id, name, email, photo_url, url}]` — guests from Contacts for the event editor, one row per email (2+ characters). `photo_url` is this app's proxy (below) or `""`; `url` the contact's page. |
+| `GET /contacts/lookup?email=a@x,b@y` | `{"a@x": {id, name, url, photo_url}}` — which guests are contacts (lower-cased emails, up to 30; unknown ones left out). |
+| `GET /contacts/{id}/photo?s=64` | The contact's thumbnail, fetched from Contacts as the person. 404 when there is none. |
 
 ## Accounts (other calendars)
 
@@ -255,4 +270,5 @@ Offers to other Pocket apps:
   only events it created (`source` = its slug).
 
 Uses: `tasks` (tasks:read, tasks:write), `travel` (trips:read), `garage` (vehicles:read), `invoicing`
-(invoices:read), `habits` (habits:read), `collaborator` (reviews:read), and the `nextcloud` service.
+(invoices:read), `habits` (habits:read), `collaborator` (reviews:read), `contacts` (contacts:read), and the
+`nextcloud` service.

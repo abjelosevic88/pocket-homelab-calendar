@@ -57,6 +57,8 @@ type Server struct {
 
 	overlayMu    sync.Mutex
 	overlayCache map[string]overlayCacheEntry
+
+	contacts contactsCache // Pocket Contacts: how each person reaches it, guest lookups
 }
 
 // New creates a server.
@@ -227,6 +229,7 @@ func (s *Server) Router() http.Handler {
 			r.Get("/activity", s.handleActivity)
 
 			s.overlayRoutes(r)
+			s.contactsRoutes(r)
 			s.accountRoutes(r)
 
 			r.Get("/feeds", s.handleFeeds)

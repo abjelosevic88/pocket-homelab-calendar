@@ -140,10 +140,12 @@ export function Empty({ title, children, icon }: { title: string; children?: Rea
   return <div className="empty">{icon && <div className="empty-ico"><Icon name={icon} size={22} /></div>}<h3>{title}</h3>{children && <div className="muted">{children}</div>}</div>
 }
 
-export function Avatar({ name, email, size = 24, color }: { name?: string; email?: string; size?: number; color?: string }) {
+export function Avatar({ name, email, size = 24, color, src }: { name?: string; email?: string; size?: number; color?: string; src?: string }) {
+  const [broken, setBroken] = useState('')
   const label = (name || email || '?').trim()
   const initials = label.split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(s => s[0]!.toUpperCase()).join('')
   const hue = [...(email || label)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7)
+  if (src && broken !== src) return <img className="avatar photo" src={src} alt="" width={size} height={size} style={{ width: size, height: size }} loading="lazy" onError={() => setBroken(src)} />
   return <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.4, background: color || `hsl(${hue} 55% 52%)` }} aria-hidden="true">{initials}</span>
 }
 
