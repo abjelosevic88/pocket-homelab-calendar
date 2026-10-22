@@ -89,5 +89,5 @@ export function Icon({ name, size = 16, className = '', strokeWidth = 1.75, titl
 }
 
 export const OVERLAY_ICON: Record<string, string> = {
-  task: 'circle', due: 'flag', done: 'check-circle', trip: 'plane', service: 'wrench', invoice: 'receipt', habit: 'habit', review: 'review', holiday: 'star', birthday: 'cake', anniversary: 'heart',
+  task: 'circle', due: 'flag', done: 'check-circle', issue: 'task', milestone: 'flag', project_start: 'flag', project_target: 'flag', cycle: 'repeat', trip: 'plane', service: 'wrench', invoice: 'receipt', habit: 'habit', review: 'review', holiday: 'star', birthday: 'cake', anniversary: 'heart',
 }

@@ -52,6 +52,9 @@ var overlaySources = []OverlaySource{
 		Reason: "Show which habits are planned for each day", Description: "Habits on the weekdays they are planned for."},
 	{ID: "collaborator", Name: "Reviews due", App: "Pocket Collaborator", Slug: "collaborator", Scopes: []string{"reviews:read"}, Color: "#c026d3",
 		Reason: "Show the deadlines of document reviews", Description: "Open document reviews on their due date."},
+	{ID: "projects", Name: "Project deadlines", App: "Pocket Projects", Slug: "projects", Scopes: []string{"projects:read"}, Color: "#5e6ad2", DefaultOn: true,
+		Reason:      "Show the due dates of your issues, project milestones and target dates, and your teams' cycles",
+		Description: "Issues assigned to you on their due date, milestones and project start/target dates of the projects you are in, and cycles as bars."},
 	{ID: "birthdays", Name: "Birthdays", App: "Pocket Contacts", Slug: "contacts", Scopes: []string{"contacts:read"}, Color: "#e11d48", DefaultOn: true,
 		Reason:      "Show your contacts' birthdays and anniversaries, and suggest guests from your contacts",
 		Description: "Birthdays and anniversaries of your contacts on their day (with the age when the year is known); guests from your contacts in the event editor."},
@@ -318,6 +321,8 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = invoiceItems(ctx, sb, from, to)
 			case "habits":
 				items, err = habitItems(ctx, sb, from, to, loc)
+			case "projects":
+				items, err = projectItems(ctx, sb, from, to)
 			case "collaborator":
 				items, err = reviewItems(ctx, sb, from, to)
 			case "birthdays":
@@ -691,6 +696,43 @@ func reviewItems(ctx context.Context, sb *sibling, from, to time.Time) ([]Overla
 		out = append(out, OverlayItem{ID: fmt.Sprintf("collaborator:%d", rv.ID), Source: "collaborator", Ref: fmt.Sprint(rv.ID), Kind: "review",
 			Title: "Review: " + rv.Title, Subtitle: rv.Status, Start: rv.DueDate[:10], End: dayAfter(rv.DueDate[:10]), AllDay: true,
 			URL: sb.public + fmt.Sprintf("/reviews/%d", rv.ID)})
+	}
+	return out, nil
+}
+
+// projectItems reads Pocket Projects' calendar: issue due dates, milestones,
+// project starts/targets (all-day) and cycles (bars over their days).
+func projectItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayItem, error) {
+	var res struct {
+		Items []struct {
+			ID       string `json:"id"`
+			Kind     string `json:"kind"`
+			Title    string `json:"title"`
+			Subtitle string `json:"subtitle"`
+			Date     string `json:"date"`
+			End      string `json:"end"`
+			URL      string `json:"url"`
+			Done     bool   `json:"done"`
+			RefID    int64  `json:"ref_id"`
+		} `json:"items"`
+	}
+	q := "/api/v1/calendar?scope=mine&from=" + from.AddDate(0, 0, -1).Format("2006-01-02") + "&to=" + to.Format("2006-01-02")
+	if err := sb.call(ctx, "GET", q, nil, &res); err != nil {
+		return nil, err
+	}
+	today := time.Now().Format("2006-01-02")
+	out := []OverlayItem{}
+	for _, it := range res.Items {
+		if len(it.Date) < 10 {
+			continue
+		}
+		end := dayAfter(it.Date[:10])
+		if it.Kind == "cycle" && len(it.End) >= 10 {
+			end = dayAfter(it.End[:10])
+		}
+		out = append(out, OverlayItem{ID: "projects:" + it.ID, Source: "projects", Ref: fmt.Sprint(it.RefID), Kind: it.Kind, Title: it.Title, Subtitle: it.Subtitle,
+			Start: it.Date[:10], End: end, AllDay: true, URL: it.URL, Done: it.Done,
+			Overdue: it.Kind == "issue" && !it.Done && it.Date[:10] < today})
 	}
 	return out, nil
 }

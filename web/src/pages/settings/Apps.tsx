@@ -7,7 +7,7 @@ import { ColorPalette } from '../../components/pickers'
 import { errMsg, Field, Loading, Segmented, useToast } from '../../components/ui'
 import { StatusDot } from './common'
 
-const ICON: Record<string, string> = { tasks: 'check-circle', travel: 'plane', garage: 'wrench', invoicing: 'receipt', habits: 'habit', collaborator: 'review', birthdays: 'cake', holidays: 'star' }
+const ICON: Record<string, string> = { tasks: 'check-circle', travel: 'plane', garage: 'wrench', invoicing: 'receipt', habits: 'habit', collaborator: 'review', projects: 'flag', birthdays: 'cake', holidays: 'star' }
 
 export function AppsTab() {
   const { sr, sources, reloadSources } = useApp()
