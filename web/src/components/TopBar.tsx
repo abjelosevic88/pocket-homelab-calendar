@@ -7,6 +7,7 @@ import { Icon } from './icons'
 import { QuickAdd } from './QuickAdd'
 import { Select } from './Select'
 import { Avatar, MenuButton, Segmented } from './ui'
+import { AskButton } from './AskButton'
 
 const DESKTOP_VIEWS: ViewName[] = ['day', '3day', 'week', 'month', 'year', 'agenda', 'people']
 
@@ -63,6 +64,7 @@ export function TopBar({ title, view, onView, onToday, onPrev, onNext, onPalette
         <Segmented value={view} onChange={onView} className="view-switch" label="View" options={DESKTOP_VIEWS.map(v => ({ value: v, label: VIEW_LABEL[v], title: `${VIEW_LABEL[v]} (${VIEW_KEY[v]})` }))} />
       )}
       <button type="button" className="btn ghost icon-only" onClick={onPalette} aria-label="Search" title="Search (⌘K or /)"><Icon name="search" size={18} /></button>
+      {mobile && <AskButton />}
       <MenuButton label="Account" className="avatar-btn" align="right" width={220} items={avatarMenu}>
         <Avatar name={user?.name} email={user?.email} size={30} />
       </MenuButton>
