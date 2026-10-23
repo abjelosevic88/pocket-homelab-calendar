@@ -1,6 +1,13 @@
 <p align="center"><img src="web/public/favicon.svg" width="72" alt=""></p>
 <h1 align="center">Pocket Calendar</h1>
 <p align="center">A self-hosted calendar for a household: shared calendars, invitations, reminders from the server, a CalDAV server for every phone, your iCloud, Google and Nextcloud calendars in one place, and the tasks, trips and bills from the other Pocket apps on the same grid.<br>One Go binary, one SQLite file, one volume.</p>
+<p align="center">
+  <a href="https://github.com/abjelosevic88/pocket-homelab-calendar/actions"><img src="https://github.com/abjelosevic88/pocket-homelab-calendar/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/abjelosevic88/pocket-homelab-calendar/pkgs/container/pocket-homelab-calendar"><img src="https://img.shields.io/badge/ghcr.io-amd64%20%7C%20arm64-blue" alt="image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
+</p>
+
+---
 
 Pocket Calendar is built for the people who live together: everyone has their own calendars, shares the ones
 they want — busy blocks only, read, edit or manage — invites each other to events and answers with
