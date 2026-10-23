@@ -4,7 +4,7 @@ import { useApp } from '../../lib/app-context'
 import type { Account } from '../../lib/types'
 import { Icon } from '../../components/icons'
 import { type Option, Select } from '../../components/Select'
-import { Confirm, Empty, errMsg, Field, Loading, MenuButton, Modal, Segmented, Spinner, Switch, useAsync, useToast } from '../../components/ui'
+import { Confirm, CoreHint, Empty, errMsg, Field, Loading, MenuButton, Modal, Segmented, Spinner, Switch, useAsync, useToast } from '../../components/ui'
 import { ago, Section, StatusDot } from './common'
 
 type Provider = 'icloud' | 'google' | 'nextcloud' | 'fastmail' | 'caldav' | 'ics'
@@ -96,7 +96,11 @@ function AddAccount({ onClose, onAdded }: { onClose: () => void; onAdded: () => 
   const { toast } = useToast()
   const [prov, setProv] = useState<Provider | null>(null)
   const [f, setF] = useState({ name: '', url: '', username: '', password: '' })
-  const [via, setVia] = useState<'core' | 'direct'>(sr?.core.configured ? 'core' : 'direct')
+  // Through Pocket Core needs a Core this box is registered with; without one
+  // the choice stays visible but greyed out and Direct is what is in effect
+  const coreOn = !!(sr?.core.configured && sr.core.registered)
+  const [pickedVia, setVia] = useState<'core' | 'direct'>(coreOn ? 'core' : 'direct')
+  const via = coreOn ? pickedVia : 'direct'
   const [test, setTest] = useState<{ busy: boolean; result?: TestResult; error?: string }>({ busy: false })
   const [busy, setBusy] = useState(false)
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => { setF(x => ({ ...x, [k]: e.target.value })); setTest({ busy: false }) }
@@ -119,7 +123,7 @@ function AddAccount({ onClose, onAdded }: { onClose: () => void; onAdded: () => 
   }
   const valid = () => {
     if (!prov || prov === 'google') return false
-    if (prov === 'nextcloud' && via === 'core') return !!sr?.core.configured
+    if (prov === 'nextcloud' && via === 'core') return coreOn
     if (!f.url.trim()) return false
     if (prov !== 'ics' && (!f.username.trim() || !f.password)) return false
     return true
@@ -167,12 +171,13 @@ function AddAccount({ onClose, onAdded }: { onClose: () => void; onAdded: () => 
             </div>
           )}
           {prov === 'nextcloud' && (
-            <Segmented value={via} onChange={v => { setVia(v); setTest({ busy: false }) }} options={[{ value: 'core', label: 'Through Pocket Core' }, { value: 'direct', label: 'Direct' }]} label="How to connect" />
+            <div>
+              <Segmented value={via} onChange={v => { setVia(v); setTest({ busy: false }) }} options={[{ value: 'core', label: 'Through Pocket Core', disabled: !coreOn }, { value: 'direct', label: 'Direct' }]} label="How to connect" />
+              {!coreOn && <CoreHint />}
+            </div>
           )}
           {prov === 'nextcloud' && via === 'core' && (
-            sr?.core.configured
-              ? <div className="callout info"><Icon name="info" size={15} /><span>Your Nextcloud calendars are reached through Pocket Core as you — no address or password needed.</span></div>
-              : <div className="callout warn"><Icon name="alert" size={15} /><span>Pocket Core isn’t configured on this box, so connect Nextcloud directly with an app password instead.</span></div>
+            <div className="callout info"><Icon name="info" size={15} /><span>Your Nextcloud calendars are reached through Pocket Core as you — no address or password needed.</span></div>
           )}
           {prov !== 'google' && !(prov === 'nextcloud' && via === 'core') && (<>
             <Field label={prov === 'ics' ? 'Feed address' : 'Server address'} help={prov === 'ics' ? 'An https:// or webcal:// link to an .ics file. It is read-only here.' : prov === 'nextcloud' ? 'Your Nextcloud address, e.g. https://cloud.example.com' : prov === 'caldav' ? 'The CalDAV URL; most servers find the calendars from the base address.' : undefined}>
@@ -204,6 +209,7 @@ function AddAccount({ onClose, onAdded }: { onClose: () => void; onAdded: () => 
 }
 
 function EditAccount({ acct, onClose, onSaved }: { acct: Account; onClose: () => void; onSaved: () => void }) {
+  const { sr } = useApp()
   const { toast } = useToast()
   const [f, setF] = useState({ name: acct.name, url: acct.url, username: acct.username, password: '', sync_minutes: acct.sync_minutes || 30 })
   const [busy, setBusy] = useState(false)
@@ -226,6 +232,7 @@ function EditAccount({ acct, onClose, onSaved }: { acct: Account; onClose: () =>
     </>}>
       <div className="stack">
         <Field label="Name"><input value={f.name} onChange={e => setF({ ...f, name: e.target.value })} /></Field>
+        {core && !(sr?.core.configured && sr.core.registered) && <div><span className="muted small">This account is connected through Pocket Core, so it can’t sync right now.</span><CoreHint /></div>}
         {!core && acct.kind !== 'google' && <>
           <Field label="Address"><input value={f.url} onChange={e => setF({ ...f, url: e.target.value })} inputMode="url" spellCheck={false} /></Field>
           {acct.kind !== 'ics' && <div className="two-col">

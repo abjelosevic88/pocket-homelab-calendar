@@ -145,12 +145,17 @@ function CalRow({ cal, onAction }: { cal: Calendar; onAction: (k: 'edit' | 'shar
 }
 
 function SourcesGroup({ sources, errors }: { sources: OverlaySource[]; errors: Record<string, string> }) {
-  const { setSources, bump } = useApp()
+  const { sr, setSources, bump } = useApp()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [open, setOpen] = useState(true)
   const [colour, setColour] = useState<{ src: OverlaySource; anchor: Anchor } | null>(null)
   if (!sources.length) return null
+  // a Pocket app read through Core is off in effect while there is no Core;
+  // ticking it then opens Settings → Apps, which says why (and offers Direct)
+  const coreOn = !!(sr?.core?.configured && sr.core.registered)
+  const needsCore = (s: OverlaySource) => s.pocket && !coreOn && !(s.has_token && s.url)
+  const isOn = (s: OverlaySource) => s.mode !== 'off' && !(s.pocket && !coreOn && s.mode === 'core')
   const save = async (s: OverlaySource, patch: Partial<OverlaySource>) => {
     setSources(list => list.map(x => x.id === s.id ? { ...x, ...patch, ...(patch.mode === 'off' ? { status: 'off' } : patch.mode ? { status: x.status === 'off' ? 'ok' : x.status } : {}) } : x))
     try {
@@ -168,13 +173,13 @@ function SourcesGroup({ sources, errors }: { sources: OverlaySource[]; errors: R
       {open && (
         <ul className="cal-list">
           {sources.map(s => {
-            const on = s.mode !== 'off'
+            const on = isOn(s)
             const color = s.color || s.default_color
             const err = on ? errors[s.id] || (s.status === 'error' ? s.detail || 'Not reachable' : '') : ''
             return (
               <li key={s.id} className={`cal-row src ${on ? '' : 'off'}`} style={{ ['--c' as string]: color }}>
-                <button type="button" role="checkbox" aria-checked={on} className="cal-check" title={s.description}
-                  onClick={() => save(s, { mode: on ? 'off' : (s.has_token && s.url ? 'direct' : 'core') })}>
+                <button type="button" role="checkbox" aria-checked={on} className="cal-check" title={!on && needsCore(s) ? 'Needs Pocket Core, or a direct connection in Settings' : s.description}
+                  onClick={() => !on && needsCore(s) ? navigate('/settings/apps') : save(s, { mode: on ? 'off' : (s.has_token && s.url ? 'direct' : 'core') })}>
                   <span className="cal-box round">{on && <Icon name="check" size={11} strokeWidth={3.2} />}</span>
                   <span className="cal-name ellipsis">{s.name}</span>
                   {err && <span className="src-warn" title={err} aria-label={`${s.name}: ${err}`}><Icon name="alert" size={13} /></span>}
@@ -186,7 +191,7 @@ function SourcesGroup({ sources, errors }: { sources: OverlaySource[]; errors: R
           })}
         </ul>
       )}
-      {sources.some(s => s.mode !== 'off' && (s.status === 'error' || errors[s.id])) && open && (
+      {sources.some(s => isOn(s) && (s.status === 'error' || errors[s.id])) && open && (
         <button type="button" className="sb-src-note" onClick={() => navigate('/settings/apps')}>
           <Icon name="info" size={13} /><span>Some apps aren’t reachable. Connect them in Settings.</span>
         </button>
