@@ -128,7 +128,7 @@ export function EventPopover({ item, anchor, onClose, actions }: { item: Item; a
   )
 }
 
-const APP_NAME: Record<string, string> = { tasks: 'Pocket Tasks', travel: 'Pocket Travel', garage: 'Pocket Garage', invoicing: 'Pocket Invoicing', habits: 'Pocket Habits', collaborator: 'Pocket Collaborator', projects: 'Pocket Projects', birthdays: 'Pocket Contacts', holidays: 'Public holidays' }
+const APP_NAME: Record<string, string> = { tasks: 'Pocket Tasks', travel: 'Pocket Travel', garage: 'Pocket Garage', invoicing: 'Pocket Invoicing', habits: 'Pocket Habits', collaborator: 'Pocket Collaborator', projects: 'Pocket Projects', birthdays: 'Pocket Contacts', health: 'Pocket Health', holidays: 'Public holidays' }
 const KIND_TEXT: Record<string, string> = { task: 'Task', due: 'Deadline', done: 'Done', trip: 'Trip', service: 'Service due', invoice: 'Invoice due', habit: 'Habit', review: 'Review due', holiday: 'Public holiday', birthday: 'Birthday', anniversary: 'Anniversary' }
 
 export function OverlayPopover({ item, anchor, onClose, onToggle }: { item: Item; anchor: Anchor; onClose: () => void; onToggle?: () => void }) {

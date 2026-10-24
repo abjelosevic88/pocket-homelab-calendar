@@ -270,5 +270,5 @@ Offers to other Pocket apps:
   only events it created (`source` = its slug).
 
 Uses: `tasks` (tasks:read, tasks:write), `travel` (trips:read), `garage` (vehicles:read), `invoicing`
-(invoices:read), `habits` (habits:read), `collaborator` (reviews:read), `contacts` (contacts:read), and the
-`nextcloud` service.
+(invoices:read), `habits` (habits:read), `collaborator` (reviews:read), `contacts` (contacts:read), `health`
+(health:read: workouts and nights as an overlay), and the `nextcloud` service.

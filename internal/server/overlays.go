@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -58,6 +59,8 @@ var overlaySources = []OverlaySource{
 	{ID: "birthdays", Name: "Birthdays", App: "Pocket Contacts", Slug: "contacts", Scopes: []string{"contacts:read"}, Color: "#e11d48", DefaultOn: true,
 		Reason:      "Show your contacts' birthdays and anniversaries, and suggest guests from your contacts",
 		Description: "Birthdays and anniversaries of your contacts on their day (with the age when the year is known); guests from your contacts in the event editor."},
+	{ID: "health", Name: "Workouts & sleep", App: "Pocket Health", Slug: "health", Scopes: []string{"health:read"}, Color: "#e11d48",
+		Reason: "Show your workouts at their time and each night's sleep on its morning", Description: "Workouts as timed items (kind, duration, distance, energy), nights as an all-day note with the hours slept."},
 	{ID: "holidays", Name: "Public holidays", App: "date.nager.at", Color: "#e11d48", DefaultOn: true,
 		Description: "Public holidays of the country chosen in Settings."},
 }
@@ -327,6 +330,8 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = reviewItems(ctx, sb, from, to)
 			case "birthdays":
 				items, err = birthdayItems(ctx, sb, from, to, loc)
+			case "health":
+				items, err = healthItems(ctx, sb, from, to)
 			}
 		}
 	}
@@ -565,6 +570,48 @@ func tripItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayI
 		out = append(out, OverlayItem{ID: fmt.Sprintf("travel:%d", tr.ID), Source: "travel", Ref: fmt.Sprint(tr.ID), Kind: "trip",
 			Title: "✈ " + tr.Name, Subtitle: tr.Destination, Start: tr.StartDate[:10], End: dayAfter(end[:10]), AllDay: true,
 			Color: tr.Color, URL: sb.public + fmt.Sprintf("/trips/%d", tr.ID), Meta: map[string]any{"status": tr.Status}})
+	}
+	return out, nil
+}
+
+// ---------- Pocket Health ----------
+
+// healthItems reads Health's calendar overlay: workouts (timed) and nights (all-day).
+func healthItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayItem, error) {
+	var res struct {
+		Items []struct {
+			ID       string `json:"id"`
+			Ref      string `json:"ref"`
+			Kind     string `json:"kind"`
+			Title    string `json:"title"`
+			Subtitle string `json:"subtitle"`
+			Start    string `json:"start"`
+			End      string `json:"end"`
+			AllDay   bool   `json:"all_day"`
+			URL      string `json:"url"`
+			Color    string `json:"color"`
+		} `json:"items"`
+	}
+	q := url.Values{"from": {from.Format("2006-01-02")}, "to": {to.Format("2006-01-02")}}
+	if err := sb.call(ctx, "GET", "/api/v1/overlay?"+q.Encode(), nil, &res); err != nil {
+		return nil, err
+	}
+	out := []OverlayItem{}
+	for _, it := range res.Items {
+		item := OverlayItem{ID: "health:" + it.ID, Source: "health", Ref: it.Ref, Kind: it.Kind, Title: it.Title, Subtitle: it.Subtitle, Start: it.Start, End: it.End, AllDay: it.AllDay, Color: it.Color, URL: it.URL}
+		if it.Kind == "workout" {
+			item.Title = "🏃 " + it.Title
+		} else if it.Kind == "sleep" {
+			item.Title = "🌙 " + it.Title
+			if len(it.Start) >= 10 {
+				item.Start = it.Start[:10]
+				item.End = dayAfter(it.Start[:10])
+			}
+		}
+		if item.URL != "" && sb.public != "" && !strings.HasPrefix(item.URL, "http") {
+			item.URL = sb.public + item.URL
+		}
+		out = append(out, item)
 	}
 	return out, nil
 }
