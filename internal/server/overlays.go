@@ -51,7 +51,7 @@ var overlaySources = []OverlaySource{
 		Reason: "Show when unpaid invoices fall due", Description: "Open invoices on their due date, with the amount still owed."},
 	{ID: "habits", Name: "Habits", App: "Pocket Habits", Slug: "habits", Scopes: []string{"habits:read"}, Color: "#f97316",
 		Reason: "Show which habits are planned for each day", Description: "Habits on the weekdays they are planned for."},
-	{ID: "collaborator", Name: "Reviews due", App: "Pocket Collaborator", Slug: "collaborator", Scopes: []string{"reviews:read"}, Color: "#c026d3",
+	{ID: "review", Name: "Reviews due", App: "Pocket Review", Slug: "review", Scopes: []string{"reviews:read"}, Color: "#c026d3",
 		Reason: "Show the deadlines of document reviews", Description: "Open document reviews on their due date."},
 	{ID: "projects", Name: "Project deadlines", App: "Pocket Projects", Slug: "projects", Scopes: []string{"projects:read"}, Color: "#5e6ad2", DefaultOn: true,
 		Reason:      "Show the due dates of your issues, project milestones and target dates, and your teams' cycles",
@@ -328,7 +328,7 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = habitItems(ctx, sb, from, to, loc)
 			case "projects":
 				items, err = projectItems(ctx, sb, from, to)
-			case "collaborator":
+			case "review":
 				items, err = reviewItems(ctx, sb, from, to)
 			case "birthdays":
 				items, err = birthdayItems(ctx, sb, from, to, loc)
@@ -757,7 +757,7 @@ func habitItems(ctx context.Context, sb *sibling, from, to time.Time, loc *time.
 	return out, nil
 }
 
-// ---------- Pocket Collaborator ----------
+// ---------- Pocket Review ----------
 
 func reviewItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayItem, error) {
 	var reviews []struct {
@@ -775,7 +775,7 @@ func reviewItems(ctx context.Context, sb *sibling, from, to time.Time) ([]Overla
 		if len(rv.DueDate) < 10 || (rv.DecidedAt != nil && *rv.DecidedAt != "") || !inDays(rv.DueDate, from, to) {
 			continue
 		}
-		out = append(out, OverlayItem{ID: fmt.Sprintf("collaborator:%d", rv.ID), Source: "collaborator", Ref: fmt.Sprint(rv.ID), Kind: "review",
+		out = append(out, OverlayItem{ID: fmt.Sprintf("review:%d", rv.ID), Source: "review", Ref: fmt.Sprint(rv.ID), Kind: "review",
 			Title: "Review: " + rv.Title, Subtitle: rv.Status, Start: rv.DueDate[:10], End: dayAfter(rv.DueDate[:10]), AllDay: true,
 			URL: sb.public + fmt.Sprintf("/reviews/%d", rv.ID)})
 	}

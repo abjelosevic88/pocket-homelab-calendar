@@ -15,7 +15,7 @@ Settings → From your apps, for boxes without Core.
 | **Pocket Garage** | `vehicles:read` | Each vehicle's next service or inspection on its due day (red when overdue). On by default. |
 | **Pocket Invoicing** | `invoices:read` | Unpaid invoices on their due date with the amount still owed. On by default. |
 | **Pocket Habits** | `habits:read` | Habits on the weekdays they are planned (off by default: busy on a month view). |
-| **Pocket Collaborator** | `reviews:read` | Open document reviews on their deadline (off by default). |
+| **Pocket Review** | `reviews:read` | Open document reviews on their deadline (off by default). |
 | **Pocket Contacts** | `contacts:read` | Birthdays and anniversaries as all-day items ("🎂 Marko Petrović (38)", "💍 …"; the age when the year is known, 29 February on the 28th in other years); a click opens the contact. The event editor also suggests guests from Contacts as you type (with their photos), and a guest who is a contact links to them in the event details. On by default. |
 | Public holidays | — | From date.nager.at for the country in Settings (`HOLIDAY_COUNTRY` by default). |
 | **Nextcloud** (Core service) | `service:nextcloud` | Nextcloud calendars (and contact birthdays) mirrored and kept in sync both ways, with the person's own Nextcloud account from Core — no password typed into the calendar. |

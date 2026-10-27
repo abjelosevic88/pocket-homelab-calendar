@@ -51,7 +51,7 @@ system UI fonts (the app itself uses the system font stack).
 What the script does, once per database: adds three people (two share free/busy,
 one shares a calendar as free/busy only), a few invitations, overlapping events and
 a multi-day event; serves a stand-in for Pocket Tasks, Travel, Garage, Invoicing and
-Collaborator on `127.0.0.1:18199` and connects those sources directly, so the
+Review on `127.0.0.1:18199` and connects those sources directly, so the
 overlays (tasks with checkboxes, deadlines, a trip, a service reminder, an invoice)
 appear. It types a quick-add phrase without submitting it and opens the editor
 without saving. Stop the demo server afterwards; the temporary database can be

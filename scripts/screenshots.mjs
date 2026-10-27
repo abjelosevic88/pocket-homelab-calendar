@@ -3,7 +3,7 @@
 //
 // The script adds a little more demo data than DEMO_DATA does (three more
 // people, invitations, overlaps, a free/busy-only calendar) and serves a tiny
-// stand-in for Pocket Tasks / Travel / Garage / Invoicing / Collaborator on
+// stand-in for Pocket Tasks / Travel / Garage / Invoicing / Review on
 // 127.0.0.1:18199, so the "From your apps" overlays have something to show.
 // It only talks to the demo instance it is pointed at.
 import fs from 'node:fs/promises'
@@ -113,7 +113,7 @@ if (!users.some(u => u.email === sani.email)) {
   await ev(admin, { calendar_id: cal('Family'), title: 'Swimming lessons', start: `${day(5)}T10:00`, end: `${day(5)}T11:00`, rrule: 'FREQ=WEEKLY;BYDAY=SA' })
   await ev(admin, { calendar_id: cal('Work'), title: 'WebDev Days', start: day(15), end: day(17), all_day: true, location: 'Ljubljana' })
 }
-for (const s of ['tasks', 'travel', 'garage', 'invoicing', 'collaborator', 'birthdays']) await call('PUT', `/overlays/sources/${s}`, { mode: 'direct', url: `http://127.0.0.1:${MOCK_PORT}`, token: 'demo' })
+for (const s of ['tasks', 'travel', 'garage', 'invoicing', 'review', 'birthdays']) await call('PUT', `/overlays/sources/${s}`, { mode: 'direct', url: `http://127.0.0.1:${MOCK_PORT}`, token: 'demo' })
 const people = await call('GET', '/people')
 const withIds = people.filter(p => p.email === sani.email || p.email === maya.email).map(p => p.id).join(',')
 const retro = (await call('GET', `/events?from=${day(0)}&to=${day(7)}`)).events.find(e => e.title === 'Sprint retro')
