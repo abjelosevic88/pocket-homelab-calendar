@@ -63,6 +63,8 @@ var overlaySources = []OverlaySource{
 		Reason: "Show your workouts at their time and each night's sleep on its morning", Description: "Workouts as timed items (kind, duration, distance, energy), nights as an all-day note with the hours slept."},
 	{ID: "still", Name: "Breathing & meditation", App: "Pocket Still", Slug: "still", Scopes: []string{"mindfulness:read"}, Color: "#3f7f6b",
 		Reason: "Show your breathing and meditation practice at the time you did it", Description: "Each practice as a timed item with its length."},
+	{ID: "requests", Name: "Coming up from your requests", App: "Pocket Requests", Slug: "requests", Scopes: []string{"requests:read"}, Color: "#1d6fa5",
+		Reason: "Show when the shows, films and albums you asked for come out", Description: "New episodes of the shows you asked for at their air time, and the release days of the films and albums you're waiting for."},
 	{ID: "holidays", Name: "Public holidays", App: "date.nager.at", Color: "#e11d48", DefaultOn: true,
 		Description: "Public holidays of the country chosen in Settings."},
 }
@@ -336,6 +338,8 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = healthItems(ctx, sb, from, to)
 			case "still":
 				items, err = stillItems(ctx, sb, from, to)
+			case "requests":
+				items, err = requestsItems(ctx, sb, from, to)
 			}
 		}
 	}
@@ -603,6 +607,44 @@ func stillItems(ctx context.Context, sb *sibling, from, to time.Time) ([]Overlay
 		item := OverlayItem{ID: "still:" + it.ID, Source: "still", Ref: it.ID, Kind: it.Kind, Title: "🧘 " + it.Title, Start: it.Start, End: it.End, AllDay: it.AllDay, Color: it.Color, URL: it.URL}
 		if item.URL != "" && sb.public != "" && !strings.HasPrefix(item.URL, "http") {
 			item.URL = sb.public + item.URL
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// ---------- Pocket Requests ----------
+
+// requestsItems reads Requests' overlay: an episode of a requested show at its
+// air time (half an hour), a film's or album's release day as an all-day item.
+func requestsItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayItem, error) {
+	var res struct {
+		Items []struct {
+			Date      string `json:"date"`
+			At        string `json:"at"`
+			Kind      string `json:"kind"`
+			Title     string `json:"title"`
+			Subtitle  string `json:"subtitle"`
+			RequestID int64  `json:"request_id"`
+			HasFile   bool   `json:"has_file"`
+		} `json:"items"`
+	}
+	q := url.Values{"from": {from.Format("2006-01-02")}, "to": {to.Format("2006-01-02")}}
+	if err := sb.call(ctx, "GET", "/api/v1/overlay?"+q.Encode(), nil, &res); err != nil {
+		return nil, err
+	}
+	icon := map[string]string{"series": "📺", "movie": "🎬", "album": "💿"}
+	out := []OverlayItem{}
+	for _, it := range res.Items {
+		item := OverlayItem{ID: fmt.Sprintf("requests:%d:%s:%s", it.RequestID, it.Date, it.Subtitle), Source: "requests", Ref: fmt.Sprint(it.RequestID),
+			Kind: it.Kind, Title: strings.TrimSpace(icon[it.Kind] + " " + it.Title), Subtitle: it.Subtitle, Done: it.HasFile, Actions: []string{}}
+		if t, err := time.Parse(time.RFC3339, it.At); err == nil && it.Kind == "series" && (t.Hour() != 0 || t.Minute() != 0) {
+			item.Start, item.End = t.Format(time.RFC3339), t.Add(30*time.Minute).Format(time.RFC3339)
+		} else {
+			item.Start, item.End, item.AllDay = it.Date, it.Date, true
+		}
+		if sb.public != "" && it.RequestID > 0 {
+			item.URL = fmt.Sprintf("%s/requests/%d", sb.public, it.RequestID)
 		}
 		out = append(out, item)
 	}
