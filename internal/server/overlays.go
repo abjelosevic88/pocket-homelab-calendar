@@ -63,6 +63,9 @@ var overlaySources = []OverlaySource{
 		Reason: "Show your workouts at their time and each night's sleep on its morning", Description: "Workouts as timed items (kind, duration, distance, energy), nights as an all-day note with the hours slept."},
 	{ID: "still", Name: "Breathing & meditation", App: "Pocket Still", Slug: "still", Scopes: []string{"mindfulness:read"}, Color: "#3f7f6b",
 		Reason: "Show your breathing and meditation practice at the time you did it", Description: "Each practice as a timed item with its length."},
+	{ID: "horoscope", Name: "Moon & sky", App: "Pocket Horoscope", Slug: "horoscope", Scopes: []string{"horoscope:read"}, Color: "#6a3fb5",
+		Reason:      "Show new and full Moons, eclipses, planets turning retrograde or direct, and the days your big transits are exact",
+		Description: "Moon phases, eclipses, retrograde and direct stations and sign changes at their time, and the exact days of slow-planet transits to your own chart."},
 	{ID: "requests", Name: "Coming up from your requests", App: "Pocket Requests", Slug: "requests", Scopes: []string{"requests:read"}, Color: "#1d6fa5",
 		Reason: "Show when the shows, films and albums you asked for come out", Description: "New episodes of the shows you asked for at their air time, and the release days of the films and albums you're waiting for."},
 	{ID: "holidays", Name: "Public holidays", App: "date.nager.at", Color: "#e11d48", DefaultOn: true,
@@ -338,6 +341,8 @@ func (s *Server) overlayItems(ctx context.Context, u *store.User, st store.Setti
 				items, err = healthItems(ctx, sb, from, to)
 			case "still":
 				items, err = stillItems(ctx, sb, from, to)
+			case "horoscope":
+				items, err = horoscopeItems(ctx, sb, from, to)
 			case "requests":
 				items, err = requestsItems(ctx, sb, from, to)
 			}
@@ -605,6 +610,41 @@ func stillItems(ctx context.Context, sb *sibling, from, to time.Time) ([]Overlay
 	out := []OverlayItem{}
 	for _, it := range res.Items {
 		item := OverlayItem{ID: "still:" + it.ID, Source: "still", Ref: it.ID, Kind: it.Kind, Title: "🧘 " + it.Title, Start: it.Start, End: it.End, AllDay: it.AllDay, Color: it.Color, URL: it.URL}
+		if item.URL != "" && sb.public != "" && !strings.HasPrefix(item.URL, "http") {
+			item.URL = sb.public + item.URL
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
+// ---------- Pocket Horoscope ----------
+
+// horoscopeItems reads Horoscope's overlay: sky events at their time (half an
+// hour) and the exact days of slow transits to the person's chart (all day).
+func horoscopeItems(ctx context.Context, sb *sibling, from, to time.Time) ([]OverlayItem, error) {
+	var res struct {
+		Items []struct {
+			ID     string `json:"id"`
+			Kind   string `json:"kind"`
+			Title  string `json:"title"`
+			Start  string `json:"start"`
+			End    string `json:"end"`
+			AllDay bool   `json:"all_day"`
+			URL    string `json:"url"`
+			Color  string `json:"color"`
+		} `json:"items"`
+	}
+	q := url.Values{"from": {from.Format("2006-01-02")}, "to": {to.Format("2006-01-02")}}
+	if err := sb.call(ctx, "GET", "/api/v1/overlay?"+q.Encode(), nil, &res); err != nil {
+		return nil, err
+	}
+	out := []OverlayItem{}
+	for _, it := range res.Items {
+		item := OverlayItem{ID: "horoscope:" + it.ID, Source: "horoscope", Ref: it.ID, Kind: it.Kind, Title: it.Title, Start: it.Start, End: it.End, AllDay: it.AllDay, Color: it.Color, URL: it.URL}
+		if item.AllDay && len(item.Start) >= 10 && (item.End == "" || item.End[:min(10, len(item.End))] <= item.Start[:10]) {
+			item.End = dayAfter(item.Start[:10]) // an all-day item ends the next day
+		}
 		if item.URL != "" && sb.public != "" && !strings.HasPrefix(item.URL, "http") {
 			item.URL = sb.public + item.URL
 		}
