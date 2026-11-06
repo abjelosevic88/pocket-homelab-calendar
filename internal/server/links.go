@@ -64,13 +64,13 @@ func (s *Server) linkUser(ctx context.Context, tok string, r *http.Request) (*st
 	if err != nil {
 		return nil, err
 	}
-	if !in.Active || !in.Delegated() || in.User == nil || in.User.Email == "" {
+	if !in.Active || !in.Delegated() || in.Audience != "calendar" || in.User == nil || in.User.Email == "" || in.App == nil || in.App.Slug == "" {
 		return nil, http.ErrNoCookie
 	}
 	if !linkAllows(strings.Fields(in.Scope), r) {
 		return nil, errLinkScope
 	}
-	s.linkApps.Store(tok, in.App)
+	s.linkApps.Store(tok, in.App.Slug)
 	return s.coreIdentityUser(ctx, in)
 }
 
@@ -85,7 +85,9 @@ func (s *Server) linkApp(r *http.Request) string {
 		return ""
 	}
 	if v, ok := s.linkApps.Load(tok); ok {
-		return v.(string)
+		if slug, ok := v.(string); ok && slug != "" {
+			return slug
+		}
 	}
 	return "link"
 }
