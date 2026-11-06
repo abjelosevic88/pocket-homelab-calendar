@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -28,6 +30,7 @@ var (
 	accountSyncTick = time.Minute      // how often due accounts are looked for
 	accountPushTick = 20 * time.Second // how often local changes are pushed
 	accountPushWait = 5 * time.Minute  // no push retry for an account before this after a failure
+	accountNetRetry = time.Minute      // first retry after the server could not be reached; doubles up to the interval
 )
 
 var errSyncBusy = errors.New("a sync of this account is running")
@@ -36,6 +39,23 @@ type accountRuntime struct {
 	dueBusy  atomic.Bool
 	pushBusy atomic.Bool
 	pushFail sync.Map // account id → time.Time of the last failed push
+	netFail  sync.Map // account id → netRetry after a sync that could not reach the server
+}
+
+type netRetry struct {
+	at   time.Time
+	wait time.Duration
+}
+
+// netRetryDue reports whether an account whose last sync could not reach
+// the server should be tried again before its normal interval.
+func (rt *accountRuntime) netRetryDue(id int64, now time.Time) bool {
+	v, ok := rt.netFail.Load(id)
+	if !ok {
+		return false
+	}
+	r := v.(netRetry)
+	return now.Sub(r.at) >= r.wait
 }
 
 var accountRuntimes sync.Map // *Server → *accountRuntime
@@ -127,7 +147,7 @@ func (s *Server) syncDue(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		if accountDue(a, time.Now()) {
+		if accountDue(a, time.Now()) || rt.netRetryDue(a.ID, time.Now()) {
 			_ = s.syncAccount(ctx, a.ID, false)
 		}
 	}
@@ -206,6 +226,18 @@ func (s *Server) syncAccount(ctx context.Context, id int64, pushOnly bool) error
 	} else {
 		rt.pushFail.Delete(id)
 		s.store.SetAccountSync(ctx, id, errText(err))
+		if isNetworkError(err) {
+			wait := accountNetRetry
+			if v, ok := rt.netFail.Load(id); ok {
+				wait = v.(netRetry).wait * 2
+			}
+			if every := time.Duration(a.SyncMinutes) * time.Minute; every > 0 && wait > every {
+				wait = every
+			}
+			rt.netFail.Store(id, netRetry{at: time.Now(), wait: wait})
+		} else {
+			rt.netFail.Delete(id)
+		}
 	}
 	if n > 0 {
 		s.touch()
@@ -237,14 +269,31 @@ func friendlyAccountError(err error) string {
 	switch {
 	case errors.Is(err, caldav.ErrAuth):
 		return "the server refused the user name or password (iCloud, Fastmail and Google-made passwords must be app-specific passwords)"
-	case errors.Is(err, caldav.ErrNoCalendars):
-		return "no CalDAV calendars were found at this address — check the server address"
+	case isNetworkError(err):
+		host := "the server"
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			if u, perr := url.Parse(ue.URL); perr == nil && u.Host != "" {
+				host = u.Host
+			}
+		}
+		return "could not reach " + host + " — the box's network dropped or had no route there; it tries again by itself"
 	case errors.Is(err, errGoogleReconnect):
 		return err.Error()
 	case errors.Is(err, context.DeadlineExceeded):
 		return "the server took too long to answer"
+	case errors.Is(err, caldav.ErrNoCalendars):
+		return "no CalDAV calendars were found at this address — check the server address"
 	}
 	return err.Error()
+}
+
+// isNetworkError reports a failure to reach the server at all (no route,
+// refused, DNS, dropped connection) rather than an answer it gave.
+func isNetworkError(err error) bool {
+	var oe *net.OpError
+	var de *net.DNSError
+	return errors.As(err, &oe) || errors.As(err, &de)
 }
 
 // ---------- CalDAV accounts (caldav, nextcloud, google) ----------
@@ -474,6 +523,15 @@ func (s *Server) syncDAV(ctx context.Context, a *store.Account, pushOnly bool) (
 		return changed, err
 	}
 	var errs []string
+	var netErr error // kept while every failure so far is the server being unreachable
+	fail := func(name string, err error) {
+		if isNetworkError(err) && (len(errs) == 0 || netErr != nil) {
+			netErr = err
+		} else {
+			netErr = nil
+		}
+		errs = append(errs, name+": "+friendlyAccountError(err))
+	}
 	for _, lc := range locals {
 		if lc.RemoteHref == "" || ctx.Err() != nil {
 			continue
@@ -486,7 +544,7 @@ func (s *Server) syncDAV(ctx context.Context, a *store.Account, pushOnly bool) (
 			n, err := s.pullCalendar(ctx, cl, lc, rc)
 			changed += n
 			if err != nil {
-				errs = append(errs, lc.Name+": "+friendlyAccountError(err))
+				fail(lc.Name, err)
 				continue
 			}
 		}
@@ -496,11 +554,14 @@ func (s *Server) syncDAV(ctx context.Context, a *store.Account, pushOnly bool) (
 		n, err := s.pushCalendar(ctx, cl, lc)
 		changed += n
 		if err != nil {
-			errs = append(errs, lc.Name+": "+friendlyAccountError(err))
+			fail(lc.Name, err)
 		}
 	}
 	if ctx.Err() != nil {
 		return changed, ctx.Err()
+	}
+	if netErr != nil {
+		return changed, netErr // one plain line, not the same outage once per calendar
 	}
 	if len(errs) > 0 {
 		return changed, errors.New(strings.Join(errs, "; "))

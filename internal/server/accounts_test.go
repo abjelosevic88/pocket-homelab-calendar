@@ -811,3 +811,34 @@ func TestAccountGoogle(t *testing.T) {
 		t.Fatalf("bob reconnecting ann's account: %d", code)
 	}
 }
+
+func TestAccountUnreachableRetriesSoon(t *testing.T) {
+	e := newAccEnv(t)
+	ctx := context.Background()
+	f := caldavtest.New("alice", "app-pass-123")
+	f.AddCalendar("work", "Work", "", false)
+	f.AddCalendar("home", "Home", "", false)
+	var acc accJSON
+	e.mustCall(e.annTk, "POST", "/api/v1/accounts", map[string]any{"kind": "caldav", "url": f.URL, "username": "alice", "password": "app-pass-123"}, 201, &acc)
+	e.sync(acc.ID, false)
+	f.Close() // the box loses its way to the server
+
+	if err := e.s.syncAccount(ctx, acc.ID, false); !isNetworkError(err) {
+		t.Fatalf("unreachable server: err = %v, want a network error", err)
+	}
+	a, _ := e.st.GetAccount(ctx, 0, acc.ID)
+	if !strings.HasPrefix(a.LastError, "could not reach 127.0.0.1:") || strings.Contains(a.LastError, "dial tcp") || strings.Count(a.LastError, "could not reach") != 1 {
+		t.Fatalf("last error = %q", a.LastError)
+	}
+	rt := e.s.acctRuntime()
+	if accountDue(a, time.Now()) || rt.netRetryDue(acc.ID, time.Now()) {
+		t.Fatal("retried at once")
+	}
+	if !rt.netRetryDue(acc.ID, time.Now().Add(accountNetRetry)) {
+		t.Fatal("no retry a minute after the network error")
+	}
+	_ = e.s.syncAccount(ctx, acc.ID, false)
+	if v, _ := rt.netFail.Load(acc.ID); v.(netRetry).wait != 2*accountNetRetry {
+		t.Fatalf("second wait = %v, want doubled", v.(netRetry).wait)
+	}
+}

@@ -395,7 +395,7 @@ func (c *Client) Home(ctx context.Context) (string, error) {
 		}
 	}
 	if lastErr != nil {
-		return "", fmt.Errorf("%w (%v)", ErrNoCalendars, lastErr)
+		return "", fmt.Errorf("%w (%w)", ErrNoCalendars, lastErr)
 	}
 	return "", ErrNoCalendars
 }
