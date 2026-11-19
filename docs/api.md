@@ -245,7 +245,11 @@ access token, refreshed automatically.
 `notify_alarms`, `notify_invites`, `digest_time` (`"07:30"` or `""`).
 
 `POST /notify/test`, `GET /settings/system`, `GET /feeds` (`{all_url, all_webcal, caldav_url, caldav_user, principal}`),
-`POST /feeds/rotate`, `GET /export.ics` (all own calendars), `GET /backup` (admin, single-person box only).
+`POST /feeds/rotate`, `GET /export.ics` (all own calendars; each VEVENT carries its calendar's name as X-WR-CALNAME), `GET /backup` (admin, single-person box only).
+`POST /import` (text/calendar, or a multipart file) adds events to your own calendars: each into the calendar its VEVENT
+or the file names (X-WR-CALNAME; one of yours with that name is used, else made with the file's colour and X-WR-TIMEZONE),
+else "Moved in". Only adds: events whose UID is already in one of your calendars are skipped →
+`{imported, skipped, failed, created, calendars}`. `GET /pocket/portable` says what Pocket Move may copy out and bring in.
 
 Users (`GET/POST /users`, `PUT/DELETE /users/{id}`, admin) and tokens (`GET/POST /tokens`, `DELETE /tokens/{id}`)
 work like the other Pocket apps. Auth: `GET /auth/status`, `POST /auth/login`, `POST /auth/setup`,
@@ -268,6 +272,8 @@ Offers to other Pocket apps:
 * `calendar:read` — `GET /calendars`, `/events`, `/events/{id}`, `/events/{id}/ics`, `/invitations`, `/search`, `/changes`
 * `calendar:write` — `POST /events`, `/events/quick`, `PUT`/`DELETE /events/{id}` — an app may change or delete
   only events it created (`source` = its slug).
+* `move:export` — `GET /pocket/portable`, `/export.ics`; `move:import` — `GET /pocket/portable`, `POST /import`
+  (Pocket Move, for the person the link acts for).
 
 Uses: `tasks` (tasks:read, tasks:write), `travel` (trips:read), `garage` (vehicles:read), `invoicing`
 (invoices:read), `habits` (habits:read), `review` (reviews:read), `contacts` (contacts:read), `health`

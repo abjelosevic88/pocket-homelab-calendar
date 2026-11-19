@@ -20,6 +20,20 @@ var linkOffers = []core.Offer{
 	{Scope: "calendar:write", Name: "Add events to your calendar", Description: "Create events and change or delete the ones the app created itself (Pocket Travel's flights and stays, Pocket Kitchen's dinner plan, Pocket Garage's service appointments)."},
 }
 
+// portable is what Pocket Move may copy out and bring in for a person
+// (docs/move.md in pocket-homelab-core): the routes run as the person the link
+// acts for, on their own calendars only. Calendar keeps events as iCalendar,
+// so its .ics is also its own file: /api/v1/import takes it back, calendars
+// and all (each event carries its calendar's name).
+var portable = &core.Portable{
+	Exports: []core.PortableExport{
+		{Path: "/api/v1/export.ics", File: "calendar.ics", Kind: core.KindICalEvents, Title: "Every event of your own calendars as iCalendar, each with its calendar's name"},
+	},
+	Imports: []core.PortableImport{
+		{Path: "/api/v1/import", Kind: core.KindICalEvents, ContentType: "text/calendar", MaxBytes: importMaxBytes, Title: "Adds the events into the calendar the file names, or \"Moved in\"; events already here are left alone"},
+	},
+}
+
 // serviceUses are the third-party services reached through Core for a person.
 var serviceUses = []core.ServiceUse{
 	{Type: "nextcloud", Reason: "Show your Nextcloud calendars (and contact birthdays) here and keep them in sync both ways"},
@@ -42,6 +56,9 @@ var linkRoutes = []linkRoute{
 var errLinkScope = errors.New("outside the link's scope")
 
 func linkAllows(scopes []string, r *http.Request) bool {
+	if portable.LinkAllows(scopes, r) {
+		return true
+	}
 	for _, lr := range linkRoutes {
 		if !strings.Contains(" "+lr.methods+" ", " "+r.Method+" ") || !lr.path.MatchString(r.URL.Path) {
 			continue

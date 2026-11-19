@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -708,6 +710,173 @@ func (s *Server) importICS(ctx context.Context, u *store.User, cal *store.Calend
 		n++
 	}
 	return n, skipped, nil
+}
+
+// importMaxBytes is the largest file /api/v1/import takes (also in the Portable description).
+const importMaxBytes = 32 << 20
+
+// movedInCalendar is where imported events go when the file names no calendar.
+const movedInCalendar = "Moved in"
+
+// handleImportAny reads an .ics (raw text/calendar or a multipart file) into
+// the person's own calendars: each event goes into the calendar its VEVENT or
+// the file names (X-WR-CALNAME; one of theirs with that name is used, else
+// it is made), else "Moved in". It only adds: an event whose UID is already
+// in one of their calendars is skipped, so the same file twice changes nothing.
+func (s *Server) handleImportAny(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	u := userFrom(ctx)
+	r.Body = http.MaxBytesReader(w, r.Body, importMaxBytes)
+	text, err := readUpload(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res, err := s.importInto(ctx, u, text)
+	if err != nil {
+		s.fail(w, err, "import")
+		return
+	}
+	s.touch()
+	writeJSON(w, http.StatusOK, res)
+}
+
+type importResult struct {
+	Imported  int      `json:"imported"`
+	Skipped   int      `json:"skipped"`
+	Failed    int      `json:"failed"`
+	Created   int      `json:"created"`
+	Calendars []string `json:"calendars"`
+}
+
+func (s *Server) importInto(ctx context.Context, u *store.User, text string) (*importResult, error) {
+	parsed, err := ical.Parse(text)
+	if err != nil || parsed.Name != "VCALENDAR" {
+		return nil, badRequest("this is not an iCalendar file")
+	}
+	own, err := s.store.OwnCalendars(ctx, u.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(own) == 0 {
+		// someone new (through a link): their first calendar as usual
+		s.seedUser(ctx, u)
+		if own, err = s.store.OwnCalendars(ctx, u.ID); err != nil {
+			return nil, err
+		}
+	}
+	key := func(n string) string { return strings.ToLower(strings.TrimSpace(n)) }
+	byName := map[string]*store.Calendar{}
+	for _, c := range own {
+		if c.ReadOnly {
+			continue
+		}
+		if _, ok := byName[key(c.Name)]; !ok {
+			byName[key(c.Name)] = c
+		}
+	}
+	have := func(uid string) bool {
+		for _, c := range own {
+			if _, err := s.store.GetEventByUID(ctx, c.ID, uid); err == nil {
+				return true
+			}
+		}
+		return false
+	}
+	fileName := strings.TrimSpace(parsed.Text("X-WR-CALNAME"))
+	res := &importResult{Calendars: []string{}}
+	used, names := map[int64]int{}, map[int64]string{}
+	calFor := func(ev *ical.Component) (*store.Calendar, error) {
+		name, fromFile := strings.TrimSpace(ev.Text("X-WR-CALNAME")), false
+		if name == "" {
+			name, fromFile = fileName, true
+		}
+		if name == "" {
+			name = movedInCalendar
+		}
+		if c, ok := byName[key(name)]; ok {
+			return c, nil
+		}
+		c := &store.Calendar{UserID: u.ID, Name: name, Color: palette[len(own)%len(palette)]}
+		if fromFile {
+			if col := parsed.Value("X-APPLE-CALENDAR-COLOR"); len(col) >= 7 && validColor(strings.ToLower(col[:7])) {
+				c.Color = strings.ToLower(col[:7])
+			}
+			if tz := strings.TrimSpace(parsed.Value("X-WR-TIMEZONE")); tz != "" {
+				if _, err := ical.LoadZone(tz); err == nil {
+					c.Timezone = tz
+				}
+			}
+			c.Description = parsed.Text("X-WR-CALDESC")
+		}
+		if err := s.store.CreateCalendar(ctx, c); err != nil {
+			return nil, err
+		}
+		cid := c.ID
+		s.store.AddActivity(ctx, u.ID, &cid, nil, "calendar_created", c.Name, "")
+		own = append(own, c)
+		byName[key(name)] = c
+		res.Created++
+		return c, nil
+	}
+	// one object per UID (a recurring event and its changed occurrences)
+	byUID := map[string][]*ical.Component{}
+	var order []string
+	for _, ev := range parsed.ChildrenNamed("VEVENT") {
+		uid := strings.TrimSpace(ev.Value("UID"))
+		if uid == "" {
+			// a stable UID from what the event says, so a second run finds it
+			sum := sha256.Sum256([]byte(ev.Text("SUMMARY") + "\x00" + ev.Value("DTSTART") + "\x00" + ev.Value("DTEND") + "\x00" + ev.Value("RRULE") + "\x00" + ev.Text("DESCRIPTION") + "\x00" + fileName))
+			uid = "import-" + hex.EncodeToString(sum[:12]) + "@pocket-calendar"
+			ev.SetRaw("UID", uid)
+		}
+		if _, ok := byUID[uid]; !ok {
+			order = append(order, uid)
+		}
+		byUID[uid] = append(byUID[uid], ev)
+	}
+	tzs := parsed.ChildrenNamed("VTIMEZONE")
+	for _, uid := range order {
+		evs := byUID[uid]
+		if have(uid) {
+			res.Skipped++
+			continue
+		}
+		// the master names the calendar; its overrides follow it
+		master := evs[0]
+		for _, ev := range evs {
+			if ev.Get("RECURRENCE-ID") == nil {
+				master = ev
+				break
+			}
+		}
+		cal, err := calFor(master)
+		if err != nil {
+			return nil, err
+		}
+		c := ical.NewCalendar()
+		c.Children = append(c.Children, tzs...)
+		for _, ev := range evs {
+			ev.Remove("X-WR-CALNAME")
+			c.Children = append(c.Children, ev)
+		}
+		if _, _, err := s.store.SaveEvent(ctx, store.EventWrite{CalendarID: cal.ID, ICS: c.String(), Loc: s.calLoc(ctx, cal.ID), Source: "import", Actor: u.ID}); err != nil {
+			s.log.Debug("import: event left out", "uid", uid, "err", err)
+			res.Failed++
+			continue
+		}
+		res.Imported++
+		if used[cal.ID] == 0 {
+			res.Calendars = append(res.Calendars, cal.Name)
+		}
+		used[cal.ID]++
+		names[cal.ID] = cal.Name
+	}
+	for id, n := range used {
+		cid := id
+		s.store.AddActivity(ctx, u.ID, &cid, nil, "imported", names[id], itoa64(int64(n))+" events")
+	}
+	return res, nil
 }
 
 func readUpload(r *http.Request) (string, error) {

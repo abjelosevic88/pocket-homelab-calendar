@@ -301,7 +301,18 @@ func (s *Server) handleExportAll(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
+		// each event says its calendar (X-WR-CALNAME, as /api/v1/import reads
+		// it), so the calendars come back as they were
+		seen := map[*ical.Component]bool{}
+		for _, ch := range out.Children {
+			seen[ch] = true
+		}
 		s.appendObjects(out, rows, false)
+		for _, ch := range out.Children {
+			if !seen[ch] && ch.Name == "VEVENT" {
+				ch.SetText("X-WR-CALNAME", c.Name)
+			}
+		}
 	}
 	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="pocket-calendar.ics"`)
