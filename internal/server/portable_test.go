@@ -22,6 +22,13 @@ import (
 // tokens for alice: pcx_export (move:export) and pcx_import (move:import).
 func moveServer(t *testing.T) (*Server, http.Handler) {
 	t.Helper()
+	return linkServer(t, "move", map[string]string{"pcx_export": core.ScopeMoveExport, "pcx_import": core.ScopeMoveImport})
+}
+
+// linkServer is apiServer with a fake Core that knows these link tokens
+// (token → scopes): each acts for alice, on behalf of the app with that slug.
+func linkServer(t *testing.T, app string, tokens map[string]string) (*Server, http.Handler) {
+	t.Helper()
 	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Path != "/api/v1/auth/introspect" {
@@ -30,13 +37,13 @@ func moveServer(t *testing.T) (*Server, http.Handler) {
 		}
 		var in struct{ Token string }
 		_ = json.NewDecoder(r.Body).Decode(&in)
-		scope := map[string]string{"pcx_export": core.ScopeMoveExport, "pcx_import": core.ScopeMoveImport}[in.Token]
+		scope := tokens[in.Token]
 		if scope == "" {
 			_, _ = w.Write([]byte(`{"active":false}`))
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"active": true, "kind": "delegated", "iss": "http://core.test", "scope": scope,
-			"audience": "calendar", "app": map[string]any{"id": 9, "slug": "move", "name": "Pocket Move"},
+			"audience": "calendar", "app": map[string]any{"id": 9, "slug": app, "name": "Pocket " + strings.ToUpper(app[:1]) + app[1:]},
 			"user": map[string]any{"id": 1, "sub": "alice-sub", "email": "alice@example.com", "name": "Alice"}})
 	}))
 	t.Cleanup(fake.Close)

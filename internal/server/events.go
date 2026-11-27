@@ -341,8 +341,10 @@ func (e forbidden) Error() string { return e.msg }
 
 func errForbidden(msg string) error { return forbidden{msg} }
 
-// createEvent makes a new event from a patch in a calendar.
-func (s *Server) createEvent(ctx context.Context, u *store.User, cal *store.Calendar, p *eventPatch, source string) (*store.EventRow, error) {
+// createEvent makes a new event from a patch in a calendar. with runs in the
+// same transaction, once the event has its id (a receipt for a request that
+// must not add twice).
+func (s *Server) createEvent(ctx context.Context, u *store.User, cal *store.Calendar, p *eventPatch, source string, with ...func(tx *sql.Tx, id int64) error) (*store.EventRow, error) {
 	if p.Start == nil || *p.Start == "" {
 		return nil, badRequest("start is required")
 	}
@@ -379,8 +381,17 @@ func (s *Server) createEvent(ctx context.Context, u *store.User, cal *store.Cale
 	ical.ApplyEvent(comp, in)
 	c := ical.NewCalendar()
 	c.Children = append(c.Children, comp)
-	row, _, err := s.store.SaveEvent(ctx, store.EventWrite{CalendarID: cal.ID, ICS: c.String(), Loc: s.calLoc(ctx, cal.ID), Source: source, Actor: u.ID},
-		s.eventHook(ctx, "created", cal, uid, *p.Title, source))
+	hooks := []store.Hook{s.eventHook(ctx, "created", cal, uid, *p.Title, source)}
+	for _, fn := range with {
+		hooks = append(hooks, func(tx *sql.Tx) error {
+			var id int64
+			if err := tx.QueryRowContext(ctx, `SELECT id FROM events WHERE calendar_id = ? AND uid = ?`, cal.ID, uid).Scan(&id); err != nil {
+				return err
+			}
+			return fn(tx, id)
+		})
+	}
+	row, _, err := s.store.SaveEvent(ctx, store.EventWrite{CalendarID: cal.ID, ICS: c.String(), Loc: s.calLoc(ctx, cal.ID), Source: source, Actor: u.ID}, hooks...)
 	if err != nil {
 		return nil, err
 	}
@@ -1033,6 +1044,18 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err, "load calendars")
 		return
 	}
+	out, err := s.searchEvents(ctx, v, q, time.Now().AddDate(0, 0, -1))
+	if err != nil {
+		s.fail(w, err, "search")
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// searchEvents finds events by words in the calendars a person may read
+// (not the ones they only see as busy), one occurrence of each: the first
+// one still on at since or after it, else the last one before.
+func (s *Server) searchEvents(ctx context.Context, v *viewer, q string, since time.Time) ([]Occurrence, error) {
 	var ids []int64
 	for id, role := range v.roles {
 		if role != store.RoleFreeBusy {
@@ -1041,8 +1064,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.store.Search(ctx, ids, q, 100)
 	if err != nil {
-		s.fail(w, err, "search")
-		return
+		return nil, err
 	}
 	now := time.Now()
 	out := []Occurrence{}
@@ -1053,7 +1075,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		// the next occurrence, else the last one before today
 		var pick *ical.Occurrence
-		if occ := res.Expand(now.AddDate(0, 0, -1), now.AddDate(3, 0, 0)); len(occ) > 0 {
+		if occ := res.Expand(since, now.AddDate(3, 0, 0)); len(occ) > 0 {
 			pick = &occ[0]
 		} else if o, ok := res.Occurrence(""); ok {
 			pick = o
@@ -1068,7 +1090,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 			out = append(out, oc)
 		}
 	}
-	writeJSON(w, http.StatusOK, out)
+	return out, nil
 }
 
 // ---------- recently deleted ----------

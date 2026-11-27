@@ -89,6 +89,9 @@ links, read live as the person — [details and what's next](docs/integrations.m
   type in the event editor.
 - Offers `calendar:read` and `calendar:write` so Day, Hub, Travel and the rest can read and add events, and
   publishes `calendar.*` events on the bus.
+- Says what it can do for the apps that bring everything together, so they find it on their own: Pocket Search
+  finds your events (`!cal`), Pocket Day writes the day's events into your journal, Pocket Hub shows an *Agenda*
+  widget and keeps a quick line as an event ("Dentist tomorrow 3pm").
 
 ## Run it
 

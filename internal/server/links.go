@@ -34,6 +34,19 @@ var portable = &core.Portable{
 	},
 }
 
+// capabilities is what Pocket Search, Pocket Day and Pocket Hub may ask for a
+// person (docs/capabilities.md in pocket-homelab-core): one fixed route each
+// under /api/v1/pocket, answered in capabilities.go from what the calendar
+// itself shows that person.
+var capabilities = core.Capabilities{
+	Search: &core.Searchable{What: "Your events, by title, place, notes and guests", Kinds: []string{"event"}, Bangs: []string{"cal", "calendar"}},
+	Day:    &core.DayFeed{Label: "Calendar", One: "event", Many: "events", Unit: "count", What: "The events on your calendar that day, with their time and place"},
+	Widget: &core.Widget{Title: "Agenda", What: "What is still on today and what comes next"},
+	Capture: &core.QuickCapture{Kinds: []core.CaptureKind{
+		{Kind: "event", Label: "Event", What: "A new event in your calendar. A day or a time in the line is understood: \"Dentist tomorrow 3pm\"", Fields: []string{"title", "date"}},
+	}},
+}
+
 // serviceUses are the third-party services reached through Core for a person.
 var serviceUses = []core.ServiceUse{
 	{Type: "nextcloud", Reason: "Show your Nextcloud calendars (and contact birthdays) here and keep them in sync both ways"},
@@ -56,7 +69,7 @@ var linkRoutes = []linkRoute{
 var errLinkScope = errors.New("outside the link's scope")
 
 func linkAllows(scopes []string, r *http.Request) bool {
-	if portable.LinkAllows(scopes, r) {
+	if portable.LinkAllows(scopes, r) || capabilities.LinkAllows(scopes, r) {
 		return true
 	}
 	for _, lr := range linkRoutes {

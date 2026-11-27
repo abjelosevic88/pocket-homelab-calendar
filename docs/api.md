@@ -274,6 +274,21 @@ Offers to other Pocket apps:
   only events it created (`source` = its slug).
 * `move:export` — `GET /pocket/portable`, `/export.ics`; `move:import` — `GET /pocket/portable`, `POST /import`
   (Pocket Move, for the person the link acts for).
+* `pocket:search`, `pocket:day`, `pocket:widget`, `pocket:capture` — one route each, below.
+
+### Capabilities
+
+What Pocket Search, Pocket Day and Pocket Hub ask (Pocket Core's capability contract; the manifest carries
+`category: "Everyday"` and what each one gives). Each scope opens exactly its route; a signed-in person may call
+them too. They show what `GET /events` shows the person: own and shared calendars that are visible, invitations,
+"Busy" for what they may only see as taken.
+
+| Route | |
+|---|---|
+| `GET /pocket/search?q=&limit=` | `{items: [{id, title, snippet, kind: "event", date, url}]}` — what `GET /search` finds, one item per event at its next time (the one going on now or to come, else its last). Still to come first, soonest on top, then what is over, latest first. `snippet` says when and where (`Fri, Dec 4 · 15:00 – 16:00 · Clinic`), `date` is the start (a day for all-day events), `url` is `/event/{occurrence id}`. Bangs: `cal`, `calendar`. |
+| `GET /pocket/day/{YYYY-MM-DD}[?tz=]` | `{date, summary: "3 events", items: [{id, time, end, title, sub, kind, url}]}` — the day's events in `tz` (else the person's zone, else the box's). `id` is the occurrence id, `time`/`end` are `HH:MM` on that day (an event that began the day before starts at `00:00`; one that goes on past midnight has no `end`), `kind` is `event` or `all day` (all-day events, and timed ones that cover the whole day), `sub` is the place, else the calendar's name or `Invitation`. Cancelled events are left out, declined ones unless `show_declined` is on. Nothing that day: empty `summary` and `items`. |
+| `GET /pocket/widget` | `{line, items: [{id, title, detail, url}], url: "/agenda"}` — today's all-day events (`all day`), what is going on (`until 16:00`, `now`) and what is yet to start (`15:00`); with fewer than 5 rows, the next events of the coming 30 days (`tomorrow 09:00`, `Mon 30 Nov`). `line`: `2 more today`, `1 all-day event today`, `Nothing more today`, `Nothing today`. Times follow `time_format`. |
+| `POST /pocket/capture` `{request_id, kind: "event", title?, text?, date?}` | A quick line → event (201 `{id, title, url}`), read like `POST /events/quick`: the line is `title`, else the first line of `text`; the rest of `text` becomes the description. A day in the line wins; a line without one lands on `date` (all day when it names no time either), without `date` where quick add would put it. Default calendar, or the `#named` one. `with Sani` stays in the title: nobody is invited. The same `request_id` again answers the same event and adds nothing; with other words it answers 400. `source` is the acting app's slug. |
 
 Uses: `tasks` (tasks:read, tasks:write), `travel` (trips:read), `garage` (vehicles:read), `invoicing`
 (invoices:read), `habits` (habits:read), `review` (reviews:read), `contacts` (contacts:read), `health`

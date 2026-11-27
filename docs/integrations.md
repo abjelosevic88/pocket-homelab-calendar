@@ -28,13 +28,29 @@ The calendar offers two scopes to the other apps:
 It publishes `calendar.created`, `calendar.updated`, `calendar.deleted`, `calendar.invited`, `calendar.rsvp` and
 `calendar.reminder` on the bus, each attributed to the person (`user_email`), so `events:read` links work.
 
+## What the calendar can do for the box-wide apps
+
+Pocket Search, Pocket Day and Pocket Hub no longer need to know the calendar's routes. The calendar says what it
+can do in its manifest (Pocket Core's capabilities) and answers on one fixed route each, as the person, with what
+the calendar itself shows them: their own calendars, the ones shared with them, the events they are invited to.
+
+| Asked by | Scope | What comes back |
+|---|---|---|
+| **Pocket Search** (`!cal`, `!calendar`) | `pocket:search` | Events by title, place, notes and guests, one line per event at its next time: what is still to come first, soonest on top, then what is over. Calendars seen only as busy are not searched. |
+| **Pocket Day** | `pocket:day` | The events of one day in the journal, in the person's time zone: repeating events at that day's occurrence, all-day events on their date, an event over midnight on both days. Cancelled events are left out; hidden calendars and declined invitations follow the calendar's own settings. |
+| **Pocket Hub** (widget) | `pocket:widget` | *Agenda*: what is still on today and, when that is little, the next events of the coming 30 days ("2 more today", "tomorrow 09:00"). |
+| **Pocket Hub** (quick capture) | `pocket:capture` | A line becomes an event the way quick add reads it ("Dentist tomorrow 3pm at the clinic"), in the default calendar or the `#named` one. Nobody is invited, whatever the line says. |
+
+An admin switches each of these on once for every app that offers it (Pocket Core → Links, the asking app's
+card); each person can switch the calendar off for themselves.
+
 ## Proposed next steps (each needs a small change in the other app)
 
-1. **Day → Calendar (`calendar:read`).** The journal gets the day's events as a source next to tasks, trips and
-   habits ("Lunch with Sani at Kod Keke, 13:00–14:30"). Day already has the source framework; it needs
-   one new source and a `uses` line.
-2. **Hub → Calendar (`calendar:read` + `events:read`).** A "Next up" card on the home screen (the next three
-   events and the first pending invitation), and calendar activity in the Activity feed.
+1. **Day → Calendar.** Done through `pocket:day` (above): the journal gets the day's events with nothing to add
+   in Day.
+2. **Hub → Calendar.** The *Agenda* widget and quick capture are done through `pocket:widget` and
+   `pocket:capture` (above). Still open: the first pending invitation on the card, and calendar activity in the
+   Activity feed (`events:read`).
 3. **Tasks → Calendar (`calendar:read`).** Time blocking in the Today view: show the day's events next to the
    tasks so free gaps are visible, and "Plan this task" drops it into the first free slot (Tasks writes its own
    *when*; the calendar already shows it).

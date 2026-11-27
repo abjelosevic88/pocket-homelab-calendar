@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -31,35 +32,13 @@ func (s *Server) handleQuickAdd(w http.ResponseWriter, r *http.Request) {
 			loc = l
 		}
 	}
-	st, _ := s.store.GetSettings(ctx, u.ID)
-	res := quick.Parse(in.Text, time.Now(), loc, time.Weekday(st.WeekStart))
-	if res.End.IsZero() {
-		res.End = res.Start.Add(time.Duration(st.DefaultDurationMin) * time.Minute)
-	}
-
-	// "#work" picks a calendar by name
-	calID := in.CalendarID
-	calName := ""
-	cals, _ := s.store.ListCalendarsFor(ctx, u.ID)
-	if res.Calendar != "" {
-		want := strings.ToLower(res.Calendar)
-		for _, c := range cals {
-			if store.RoleAtLeast(c.Role, store.RoleWrite) && !c.ReadOnly && strings.HasPrefix(strings.ToLower(strings.ReplaceAll(c.Name, " ", "")), want) {
-				id := c.ID
-				calID = &id
-				break
-			}
-		}
-		if calID == nil || *calID == 0 {
-			res.Title = strings.TrimSpace(res.Title + " #" + res.Calendar)
-		}
-	}
-	cal, err := s.targetCalendar(ctx, u, calID)
+	res := s.quickRead(ctx, u.ID, in.Text, time.Now(), loc)
+	cal, err := s.quickCalendar(ctx, u, &res, in.CalendarID)
 	if err != nil {
 		s.fail(w, err, "calendar")
 		return
 	}
-	calName = cal.Name
+	calName := cal.Name
 
 	// "with Sani" invites people on the box (or an email)
 	attendees := []ical.Attendee{}
@@ -95,33 +74,9 @@ func (s *Server) handleQuickAdd(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"parsed": parsed})
 		return
 	}
-	tz := loc.String()
-	p := &eventPatch{Title: &res.Title, Start: &start, End: &end, AllDay: &res.AllDay, CalendarID: &cal.ID, TZ: &tz}
-	if res.AllDay {
-		p.TZ = nil
-	}
-	if res.RRule != "" {
-		p.RRule = &res.RRule
-	}
-	if res.Location != "" {
-		p.Location = &res.Location
-	}
-	if len(res.Alarms) > 0 {
-		al := []ical.Alarm{}
-		for _, a := range res.Alarms {
-			al = append(al, ical.Alarm{Trigger: a})
-		}
-		p.Alarms = &al
-	}
+	p := quickPatch(&res, loc, cal)
 	if len(attendees) > 0 {
 		p.Attendees = &attendees
-	}
-	if res.Busy != nil {
-		p.Busy = res.Busy
-	}
-	if res.Private {
-		t := true
-		p.Private = &t
 	}
 	row, err := s.createEvent(ctx, u, cal, p, s.source(r))
 	if err != nil {
@@ -144,4 +99,67 @@ func (s *Server) handleQuickAdd(w http.ResponseWriter, r *http.Request) {
 		out["event"] = s.occurrenceView(ctx, v, row, *o, nil)
 	}
 	writeJSON(w, http.StatusCreated, out)
+}
+
+// quickRead reads a line the way quick add does: with the person's first day
+// of the week, and their usual length for an event that names no end.
+func (s *Server) quickRead(ctx context.Context, uid int64, text string, now time.Time, loc *time.Location) quick.Result {
+	st, _ := s.store.GetSettings(ctx, uid)
+	res := quick.Parse(text, now, loc, time.Weekday(st.WeekStart))
+	if res.End.IsZero() {
+		res.End = res.Start.Add(time.Duration(st.DefaultDurationMin) * time.Minute)
+	}
+	return res
+}
+
+// quickCalendar picks the calendar a read line goes to: "#work" one the
+// person may write to by the start of its name, else the given one, else
+// their default. A "#word" that names no calendar stays in the title.
+func (s *Server) quickCalendar(ctx context.Context, u *store.User, res *quick.Result, calID *int64) (*store.Calendar, error) {
+	if res.Calendar != "" {
+		cals, _ := s.store.ListCalendarsFor(ctx, u.ID)
+		want := strings.ToLower(res.Calendar)
+		for _, c := range cals {
+			if store.RoleAtLeast(c.Role, store.RoleWrite) && !c.ReadOnly && strings.HasPrefix(strings.ToLower(strings.ReplaceAll(c.Name, " ", "")), want) {
+				id := c.ID
+				calID = &id
+				break
+			}
+		}
+		if calID == nil || *calID == 0 {
+			res.Title = strings.TrimSpace(res.Title + " #" + res.Calendar)
+		}
+	}
+	return s.targetCalendar(ctx, u, calID)
+}
+
+// quickPatch is the event a read line becomes in a calendar (nobody invited).
+func quickPatch(res *quick.Result, loc *time.Location, cal *store.Calendar) *eventPatch {
+	start, end := fmtWhen(res.Start, res.AllDay, loc), fmtWhen(res.End, res.AllDay, loc)
+	tz := loc.String()
+	p := &eventPatch{Title: &res.Title, Start: &start, End: &end, AllDay: &res.AllDay, CalendarID: &cal.ID, TZ: &tz}
+	if res.AllDay {
+		p.TZ = nil
+	}
+	if res.RRule != "" {
+		p.RRule = &res.RRule
+	}
+	if res.Location != "" {
+		p.Location = &res.Location
+	}
+	if len(res.Alarms) > 0 {
+		al := []ical.Alarm{}
+		for _, a := range res.Alarms {
+			al = append(al, ical.Alarm{Trigger: a})
+		}
+		p.Alarms = &al
+	}
+	if res.Busy != nil {
+		p.Busy = res.Busy
+	}
+	if res.Private {
+		t := true
+		p.Private = &t
+	}
+	return p
 }
