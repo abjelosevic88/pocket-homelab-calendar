@@ -565,6 +565,14 @@ func TestPocketCapture(t *testing.T) {
 	if k = keptEvent(t, alice, call.ID).Event; !k.AllDay || k.Start != today {
 		t.Errorf("a bare line: %+v", k)
 	}
+	// a time and no day, sent without a date (Pocket Hub leaves the day empty
+	// unless the person picks one): a time already gone today is tomorrow's
+	gone := time.Now().In(loc).Add(-time.Minute)
+	_, dentist, _ := capture(t, alice, map[string]any{"request_id": "hub-000000000000000c", "text": "Dentist " + gone.Format("15:04")})
+	k = keptEvent(t, alice, dentist.ID).Event
+	if start, err := time.Parse(time.RFC3339, k.Start); err != nil || k.AllDay || !start.After(gone) || start.Sub(gone) > 24*time.Hour+time.Minute {
+		t.Errorf("a time already gone today, without a date: %+v (%v)", k, err)
+	}
 	// several lines and no title: the first is the event, the rest the notes
 	_, lines, _ := capture(t, alice, map[string]any{"request_id": "hub-0000000000000006", "text": "Pack for the trip tomorrow\npassport\ncharger"})
 	if k = keptEvent(t, alice, lines.ID).Event; lines.Title != "Pack for the trip" || k.Description != "passport\ncharger" || k.Start != tomorrow {
@@ -623,8 +631,8 @@ func TestPocketCapture(t *testing.T) {
 			t.Errorf("%s: %d %s", name, code, body)
 		}
 	}
-	if n := eventCount(t, s, "alice@example.com"); n != before || n != 9 {
-		t.Errorf("alice has %d events, want 9 (and %d before the refused ones)", n, before)
+	if n := eventCount(t, s, "alice@example.com"); n != before || n != 10 {
+		t.Errorf("alice has %d events, want 10 (and %d before the refused ones)", n, before)
 	}
 	if code, _ := (&apiClient{t: t, h: h}).call("POST", "/api/v1/pocket/capture", line); code != 401 {
 		t.Errorf("signed out: %d", code)
